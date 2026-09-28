@@ -52,6 +52,10 @@ def load_env() -> dict:
 
 
 def get_key() -> str | None:
+    # 线上公开部署必须关掉大模型：一是别烧个人 key 的额度，二是作业评的是检索本身，
+    # 答案生成只是本地可选增强。设 DISABLE_LLM=1 即强制纯检索模式。
+    if os.environ.get("DISABLE_LLM") == "1":
+        return None
     return os.environ.get("OPENROUTER_API_KEY") or load_env().get("OPENROUTER_API_KEY")
 
 

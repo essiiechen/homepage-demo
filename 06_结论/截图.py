@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "06_结论"
 URL = "http://127.0.0.1:8791/"
 PW = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", str(ROOT / "tmp" / "pw"))
+# 光算出路径没用：launch() 只认环境变量。不设就会去 ~/Library/Caches/ms-playwright
+# 找默认版本，跟本项目安装的 playwright 版本号对不上（要 1243，缓存里只有 1237）。
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PW
 UNCHECK_LLM = os.environ.get("SHOT_LLM", "0") != "1"   # SHOT_LLM=1 时保留 LLM 生成
 
 SHOTS = [

@@ -16,9 +16,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "index.html"
 
+# 真正能提问的问答应用（Flask + 混合检索）已部署在这里；
+# 本页只是评估报告，所以要把它放在最显眼的位置，别让看的人以为这就是系统本身。
+LIVE_URL = "https://baijiu-report-rag.app-tencent.workbuddy.host/"
+
 SHOTS = [
     ("01", "单公司事实题：答案带『公司 + 页码』出处", "06_结论/截图_01_单公司题.png"),
-    ("02", "跨公司题（全局 top-8）：只覆盖 5/15 家公司", "06_结论/截图_02_跨公司题_全局top8.png"),
+    ("02", "跨公司题（全局 top-8）：只覆盖 6/15 家公司", "06_结论/截图_02_跨公司题_全局top8.png"),
     ("03", "跨公司题（分层召回）：覆盖 15/15 家公司", "06_结论/截图_03_跨公司题_分层召回.png"),
 ]
 
@@ -52,6 +56,11 @@ h1{margin:0 0 10px;font-size:28px;letter-spacing:.3px}
 .badges{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
 .badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);
  border-radius:999px;padding:4px 12px;font-size:13px}
+.livebar{background:#eef6ff;border-bottom:1px solid #cfe0fb}
+.livebar .inner{max-width:1080px;margin:0 auto;padding:14px 20px;font-size:15px}
+.livebar a{color:#1156c4;font-weight:600;text-decoration:none;border-bottom:1px solid #9dbdf5}
+.livebar a:hover{color:#0b3f96}
+.livebar .note{display:block;margin-top:4px;color:#5a6b85;font-size:13px}
 h2{font-size:20px;margin:34px 0 14px;padding-left:11px;border-left:4px solid #0f766e}
 h3{font-size:16px;margin:22px 0 10px;color:#0f766e}
 p{margin:10px 0}
@@ -168,6 +177,12 @@ def main():
 <span class="badge">15 题逐题记录 + 5 种召回策略对照 · 判定基于检索，不依赖大模型</span>
 </div>
 </div></header>
+
+<div class="livebar"><div class="inner">
+<b>可交互的问答知识库（能真的提问）→</b>
+<a href="{LIVE_URL}" target="_blank" rel="noopener">{LIVE_URL}</a>
+<span class="note">本页是评估报告；要试用检索系统请点上链接，答案带「公司 + 年报页码」出处。</span>
+</div></div>
 
 <div class="wrap">
 

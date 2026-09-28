@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -44,10 +45,33 @@ if _p.exists():
     STATS["n_chars"] = sum(r.get("n_chars", r.get("chars", 0)) for r in rows)
 
 
-def get_idx(tag: str = "bge") -> Index:
-    if tag not in IDX_CACHE:
-        IDX_CACHE[tag] = Index.load(tag=tag)
-    return IDX_CACHE[tag]
+# 索引后端：默认 bge 神经 embedding；线上若 torch/模型装不上，自动降级到
+# 零依赖的 TF-IDF+SVD（同一批切块、同一套权重，差距见 05_评估/对照_双后端.md）。
+DEFAULT_TAG = os.environ.get("IDX_TAG", "bge")
+FALLBACK_ORDER = ["bge", "tfidf"]
+FAILED: set[str] = set()
+
+
+def get_idx(tag: str | None = None) -> Index:
+    """按 [指定后端, bge, tfidf] 顺序取第一个能加载的后端，失败过的不再重试。"""
+    tag = tag or DEFAULT_TAG
+    order = [tag] + [t for t in FALLBACK_ORDER if t != tag]
+    last: Exception | None = None
+    for t in order:
+        if t in IDX_CACHE:
+            return IDX_CACHE[t]
+        if t in FAILED:
+            continue
+        try:
+            IDX_CACHE[t] = Index.load(tag=t)
+            if t != tag:
+                print(f"[索引] 后端 {tag} 不可用，已降级为 {t}（{IDX_CACHE[t].backend}）")
+            return IDX_CACHE[t]
+        except Exception as e:  # noqa: BLE001
+            FAILED.add(t)
+            last = e
+            print(f"[索引] 后端 {t} 加载失败：{type(e).__name__}: {str(e)[:120]}")
+    raise RuntimeError(f"没有可用的索引后端（最后错误：{last}）")
 
 
 def stratified(idx: Index, q: str, per_company: int = 2, cap: int = 30) -> list[dict]:
@@ -101,7 +125,7 @@ def ask():
     q = (d.get("q") or "").strip()
     mode = d.get("mode", "hybrid")
     topk = int(d.get("topk", 8))
-    tag = d.get("tag", "bge")
+    tag = d.get("tag") or DEFAULT_TAG
     use_llm = bool(d.get("llm", True))
     code = d.get("code") or None
     if not q:
@@ -149,8 +173,9 @@ def ask():
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--host", default="127.0.0.1")
+    # 线上托管会注入 PORT 环境变量并要求绑定 0.0.0.0；本地跑仍可用 --port/--host 覆盖
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8765)))
+    ap.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     a = ap.parse_args()
     print(f"索引后端 {get_idx().backend}｜块 {len(get_idx().chunks)}｜LLM key {'有' if llm.get_key() else '无'}")
     app.run(host=a.host, port=a.port, debug=False, threaded=True)
