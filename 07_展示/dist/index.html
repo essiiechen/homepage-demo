@@ -21,7 +21,7 @@ h2{font-size:20px;margin:34px 0 14px;padding-left:11px;border-left:4px solid #0f
 h3{font-size:16px;margin:22px 0 10px;color:#0f766e}
 p{margin:10px 0}
 .card{background:#fff;border:1px solid #e4e7eb;border-radius:12px;padding:20px 22px;
- box-shadow:0 1px 3px rgba(16,24,40,.05)}
+ box-shadow:0 1px 3px rgba(16,24,40,.05);overflow-x:auto}
 .lead{background:#fff8e6;border:1px solid #f0d69a;border-radius:12px;padding:18px 20px;font-size:15px}
 .lead b{color:#8a5a00}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
@@ -45,7 +45,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-s
 pre{background:#1f2328;color:#e6edf3;padding:14px 16px;border-radius:10px;overflow:auto}
 .note{font-size:13px;color:#667085;margin-top:8px}
 .pdfbox{background:#fff;border:1px solid #e4e7eb;border-radius:12px;padding:12px}
-.pdfbox iframe{width:100%;height:620px;border:0;border-radius:8px;display:block}
+.pdfbox iframe{width:100%;height:640px;border:0;border-radius:8px;display:block}
 a{color:#0f766e}
 footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:13px;color:#667085}
 @media(max-width:640px){h1{font-size:22px}table{font-size:13px}}
@@ -58,7 +58,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 <div class="badges">
 <span class="badge">方向：知识库（检索）</span>
 <span class="badge">2,698 页 / 3,988 张表格 / 9,762 个文本块</span>
-<span class="badge">10 题逐题记录 · 判定基于检索，不依赖大模型</span>
+<span class="badge">15 题逐题记录 + 5 种召回策略对照 · 判定基于检索，不依赖大模型</span>
 </div>
 </div></header>
 
@@ -66,10 +66,11 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 
 <h2>一句话结论</h2>
 <div class="lead">
-<b>单公司事实题，检索 7/7 全部命中；跨公司全景题，top-8 检索下 gold 块 0/3。</b><br>
-根因不是模型不行、也不是数据缺失，而是 <b>top-k 语义截断</b>：一次只取 8 块，最多覆盖 8 家公司，
-“15 家里谁最……”这类题<b>结构上不可能</b>召回全。只换召回策略（分层召回：每家公司各取 2 块）、
-不改任何模型参数，覆盖率 5/15 → 15/15，3/3 全部召回。
+<b>点名公司要一个数字的问题，检索 9/9 全部命中；要跨实体聚合、排序、取极值的问题，
+全局 top-k 检索 5 道只对 1 道（还是碰巧），且病根有两层——覆盖垄断 + 字段错位。</b><br>
+对照实验证明：只换召回策略（按公司分层 + 关键章节保底）能把大部分失败修回来，
+但代价是上下文涨 5 倍，且仍有题救不回来——<b>这类题的正解是先 ETL 成结构化宽表</b>；
+要稳定口径、叙述方式才轮到微调。
 </div>
 
 <h2>数据规模</h2>
@@ -81,10 +82,16 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 <div class="stat"><div class="n">241万</div><div class="t">字</div></div>
 </div>
 
-<h2>一、10 道题的检索结果</h2>
+<h2>一、15 道题的检索结果</h2>
 <div class="card">
-<p style="margin-top:0">判据：<b>含标准答案的原文块（gold 块）是否被召回进 top-8</b>。标准答案全部回原文核对过，
-不是凭印象写的（我第一版金标准自己错了一题，见文末注脚）。</p>
+<p style="margin-top:0">判据：<b>标准答案需要的证据（哪家公司 + 哪个数字）是否进 top-8</b>。
+标准答案全部回原文核对过，不是凭印象写的（我第一版金标准自己错了一题，见文末注脚）。</p>
+<table>
+<thead><tr><th>题型分组</th><th>题数</th><th>检索可答</th><th>表现与原因</th></tr></thead>
+<tbody><tr><td>① 单公司·一个数字</td><td>9</td><td class='ok'>9/9</td><td>答案就是原文里的一行：全部召回，最好第 1 位命中，出处精确到『公司 + 页码』</td></tr><tr><td>② 跨公司·全景（无候选集）</td><td>3</td><td class='warn'>1/3</td><td>top-8 最多覆盖 8 家公司，『15 家里谁最…』结构上覆盖不全；唯一『对』的是碰巧</td></tr><tr><td>③ 跨公司·受限（给了候选集）</td><td>2</td><td class='no'>0/2</td><td>对照组：即使点名了公司也全错——全局排序会垄断名额（Q10 只覆盖 1/15 家）</td></tr><tr><td>④ 单公司·要拼多块</td><td>1</td><td class='no'>0/1</td><td>要 3 个数字，top-8 被同一章节占满，只召回 1 个</td></tr></tbody>
+</table>
+<p class="note"><b>合计 10/15 题检索可答</b>（其中 1 题属碰巧，不算真会）。
+逐题明细见下表。</p>
 <table>
 <thead><tr><th>题目</th><th>问题</th><th>标准答案</th><th>hybrid 召回块（前 4）</th><th>判定 / 错在哪</th></tr></thead>
 <tbody>
@@ -92,90 +99,130 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 <td><span class="tag">Q1</span>单公司·精确数字</td>
 <td>贵州茅台2025年营业收入是多少？同比变化多少？</td>
 <td>营业收入 1,688.38 亿元（-1.21%）；营业总收入 1,720.54 亿元（含利息收入 32.16 亿）</td>
-<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P21文 ｜ #2 贵州茅台 P21文 ｜ #3 贵州茅台 P61表 ｜ #4 贵州茅台 P63表 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P21文 ｜ #2 贵州茅台 P21文 ｜ #3 贵州茅台 P21文 ｜ #4 贵州茅台 P12表 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（主要会计数据表/利润表）召回成功</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q2</span>单公司·利润数字</td>
 <td>五粮液2025年归属于上市公司股东的净利润是多少？同比下降多少？</td>
 <td>归母净利润 89.54 亿元，同比下降 71.89%</td>
 <td style="font-size:12.5px;color:#475467">#1 五粮液 P7文 ｜ #2 五粮液 P7文 ｜ #3 五粮液 P8文 ｜ #4 五粮液 P21文 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块召回成功，hybrid 第 2 位</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q3</span>单公司·比率</td>
 <td>五粮液酒类产品的毛利率是多少？</td>
 <td>酒类产品毛利率 83.75%（营收 371.04 亿 / 成本 60.28 亿）</td>
-<td style="font-size:12.5px;color:#475467">#1 五粮液 P13表 ｜ #2 五粮液 P18文 ｜ #3 五粮液 P11文 ｜ #4 五粮液 P10表 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 五粮液 P13表 ｜ #2 五粮液 P18文 ｜ #3 五粮液 P11文 ｜ #4 五粮液 P18文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（分产品毛利率表）第 1 位</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q4</span>单公司·分红</td>
 <td>贵州茅台2025年度的利润分配方案是什么？每10股派多少？</td>
 <td>每10股派息 279.93 元（含税）；现金分红 350.33 亿元，占归母净利 42.56%</td>
-<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P34文 ｜ #2 贵州茅台 P34文 ｜ #3 泸州老窖 P172表 ｜ #4 古井贡酒 P38文 …<br><span class="tag">覆盖 3/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P34文 ｜ #2 贵州茅台 P34文 ｜ #3 贵州茅台 P2文 ｜ #4 贵州茅台 P33表 …<br><span class="tag">覆盖 3/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（利润分配表）第 2 位</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q5</span>单公司·渠道结构</td>
 <td>洋河股份2025年末经销商数量是多少？比上年变化多少？</td>
 <td>总计 8,371 家（省内 2,933 + 省外 5,438），报告期内净减少 495 家</td>
-<td style="font-size:12.5px;color:#475467">#1 洋河股份 P9文 ｜ #2 洋河股份 P8表 ｜ #3 洋河股份 P21文 ｜ #4 洋河股份 P13文 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 洋河股份 P9文 ｜ #2 洋河股份 P8表 ｜ #3 洋河股份 P20表 ｜ #4 洋河股份 P52文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（经销商数量表）第 5 位</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q6</span>单公司·区域/增长</td>
 <td>山西汾酒2025年营业收入是多少？同比增速多少？</td>
 <td>营业收入 387.18 亿元，同比 +7.52%（15 家里唯一正增长）</td>
-<td style="font-size:12.5px;color:#475467">#1 山西汾酒 P20文 ｜ #2 山西汾酒 P16表 ｜ #3 山西汾酒 P20文 ｜ #4 山西汾酒 P47文 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 山西汾酒 P20文 ｜ #2 山西汾酒 P16表 ｜ #3 山西汾酒 P5文 ｜ #4 山西汾酒 P53文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（主营业务分析表）第 3 位</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q7</span>跨公司·全景排序</td>
 <td>这15家白酒公司里，2025年营业收入同比增长最快的是哪一家？增速是多少？</td>
 <td>山西汾酒 +7.52%，是唯一正增长；其余 14 家全部下滑</td>
-<td style="font-size:12.5px;color:#475467">#1 泸州老窖 P28文 ｜ #2 古井贡酒 P13文 ｜ #3 泸州老窖 P12文 ｜ #4 顺鑫农业 P24文 …<br><span class="tag">覆盖 5/15</span></td>
-<td class="no">错——召回截断<br><span style="font-weight:400;font-size:12.5px;color:#667085">top-8 最多 8 块，只覆盖 5/15 家公司；正确答案山西汾酒的块没进上下文，结构上不可能答对</span></td>
+<td style="font-size:12.5px;color:#475467">#1 泸州老窖 P28文 ｜ #2 古井贡酒 P13文 ｜ #3 泸州老窖 P12文 ｜ #4 顺鑫农业 P24文 …<br><span class="tag">覆盖 6/15</span></td>
+<td class="no">错——召回截断<br><span style="font-weight:400;font-size:12.5px;color:#667085">top-8 只覆盖 6/15 家公司；正确答案山西汾酒的块没进上下文，『15 家里谁最…』在全局 top-8 下结构上不可能答对</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q8</span>跨公司·全景筛选</td>
 <td>这15家公司里，哪家2025年归属于上市公司股东的净利润是亏损的？亏了多少？</td>
 <td>两家亏损：顺鑫农业 -1.52 亿（P7）、酒鬼酒 -3,395 万（P8）【第一版金标准漏了顺鑫农业，回原文核对后修正】</td>
 <td style="font-size:12.5px;color:#475467">#1 金徽酒 P3文 ｜ #2 老白干酒 P2文 ｜ #3 金徽酒 P57文 ｜ #4 金徽酒 P3文 …<br><span class="tag">覆盖 5/15</span></td>
-<td class="no">错——召回截断<br><span style="font-weight:400;font-size:12.5px;color:#667085">同上：两家亏损公司（顺鑫农业/酒鬼酒）都不在 top-8 覆盖的 5 家里</span></td>
+<td class="no">错——召回截断<br><span style="font-weight:400;font-size:12.5px;color:#667085">top-8 只覆盖 5/15 家；两家亏损公司（顺鑫农业/酒鬼酒）至少一家进不来，只能答一半</span></td>
 </tr>
 <tr>
 <td><span class="tag">Q9</span>跨公司·口径比较</td>
 <td>这15家公司里，哪家公司的酒类（或主营业务）毛利率最高？</td>
 <td>贵州茅台 91.23%（主营业务分行业·酒类，P10）【第一版金标准写成『口径不统一无法排序』，回原文核对后修正】</td>
 <td style="font-size:12.5px;color:#475467">#1 山西汾酒 P20文 ｜ #2 迎驾贡酒 P26文 ｜ #3 迎驾贡酒 P12表 ｜ #4 洋河股份 P21文 …<br><span class="tag">覆盖 5/15</span></td>
-<td class="warn">碰巧能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">答案茅台恰好在召回子集里；但只比较 5 家就下『最高』结论，换问法即翻车</span></td>
+<td class="warn">碰巧能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">答案茅台恰好在召回子集里；但只覆盖 5/15 家就下『最高』结论，换问法即翻车</span></td>
 </tr>
 <tr>
-<td><span class="tag">Q10</span>单公司·非财务</td>
+<td><span class="tag">Q10</span>跨公司·两家比较</td>
+<td>贵州茅台和五粮液，谁的酒类（主营业务）毛利率更高？各是多少？</td>
+<td>贵州茅台 91.23%（P10）&gt; 五粮液 83.75%（P10）</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P21文 ｜ #2 贵州茅台 P10表 ｜ #3 贵州茅台 P21文 ｜ #4 贵州茅台 P21文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="no">错——覆盖垄断<br><span style="font-weight:400;font-size:12.5px;color:#667085">点名了两家公司，top-8 却只覆盖 1/15 家：名额全被茅台吃掉，五粮液一块都没进（top-40 也只有 2 家）——不是跨公司比较难，是全局排序会垄断</span></td>
+</tr>
+<tr>
+<td><span class="tag">Q11</span>跨公司·三家比较</td>
+<td>今世缘、口子窖、老白干酒这三家公司，2025年营业收入最高的是哪家？是多少？</td>
+<td>今世缘 101.81 亿（10,180,698,281.27）&gt; 老白干 41.21 亿 &gt; 口子窖 39.91 亿</td>
+<td style="font-size:12.5px;color:#475467">#1 今世缘 P54文 ｜ #2 今世缘 P54表 ｜ #3 口子窖 P10文 ｜ #4 今世缘 P43文 …<br><span class="tag">覆盖 2/15</span></td>
+<td class="no">错——字段错位<br><span style="font-weight:400;font-size:12.5px;color:#667085">三家点名公司只覆盖 2/15 家；且含营收金额的表格块在自家排序很靠后（今世缘排到第 47 位），因为语义检索先命中『讨论收入的段落』</span></td>
+</tr>
+<tr>
+<td><span class="tag">Q12</span>单公司·多块拼接</td>
+<td>贵州茅台2025年的营业收入、归母净利润、酒类毛利率分别是多少？</td>
+<td>营收 1,688.38 亿（P6/P7）、归母净利 823.20 亿（P7）、酒类毛利率 91.23%（P10）——三个数字分散在 2-3 个块里，需要拼接</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P21文 ｜ #2 贵州茅台 P21文 ｜ #3 贵州茅台 P10表 ｜ #4 贵州茅台 P12表 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="no">错——多块拼接<br><span style="font-weight:400;font-size:12.5px;color:#667085">要 3 个数字（营收/净利/毛利率），top-8 被同一章节占满，只召回 1 个数字</span></td>
+</tr>
+<tr>
+<td><span class="tag">Q13</span>单公司·跨期比较</td>
+<td>五粮液2025年营业收入相比2024年下降了多少？降幅是多少？</td>
+<td>营收 405.29 亿 vs 2024 年 891.75 亿，同比 -54.55%（P7 主要会计数据表）</td>
+<td style="font-size:12.5px;color:#475467">#1 五粮液 P21文 ｜ #2 五粮液 P7文 ｜ #3 五粮液 P12文 ｜ #4 五粮液 P18文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（含 2024/2025 两年数据的主要会计数据表）第 1 位</span></td>
+</tr>
+<tr>
+<td><span class="tag">Q14</span>单公司·非数字事实</td>
+<td>贵州茅台2025年度财务报表被出具了什么类型的审计意见？</td>
+<td>标准无保留意见（P2 重要提示 / P53 第八节·审计意见）</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P53文 ｜ #2 贵州茅台 P35文 ｜ #3 贵州茅台 P56文 ｜ #4 贵州茅台 P38表 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">非数字事实也召回成功（审计意见段落）第 2 位</span></td>
+</tr>
+<tr>
+<td><span class="tag">Q15</span>单公司·非财务</td>
 <td>贵州茅台2025年末在职员工总人数是多少？</td>
 <td>需看年报「在职员工的数量」表（母公司+主要子公司）</td>
-<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P32文 ｜ #2 贵州茅台 P31表 ｜ #3 贵州茅台 P29文 ｜ #4 贵州茅台 P12表 …<br><span class="tag">覆盖 1/15</span></td>
-<td class="ok">能答对</td>
+<td style="font-size:12.5px;color:#475467">#1 贵州茅台 P32文 ｜ #2 贵州茅台 P31表 ｜ #3 贵州茅台 P32表 ｜ #4 贵州茅台 P29文 …<br><span class="tag">覆盖 1/15</span></td>
+<td class="ok">能答对<br><span style="font-weight:400;font-size:12.5px;color:#667085">gold 块（在职员工数量表）第 1 位</span></td>
 </tr>
 </tbody>
 </table>
-<p class="note">汇总：单公司事实题 <b class="ok">7/7 gold 块召回成功</b>；
-跨公司全景题 <b class="no">0/3</b>（Q9 判定“碰巧能答对”——茅台恰好挤进召回子集，但只比较 5 家就下“最高”结论，换问法即翻车）。</p>
 </div>
 
-<h2>二、为什么翻车：换召回策略，不动模型</h2>
+<h2>二、病根不在数据、也不在模型，在『哪些块能到答案面前』（两层）</h2>
 <div class="card">
+<h3 style="margin-top:0">第一层：覆盖垄断</h3>
+<p>全局排序按语义相似度取块，名额会被和问句最像的那一两家吃掉。
+最典型的是 Q10「茅台 vs 五粮液谁毛利率高」——<b>点名了两家公司，top-8 只覆盖 1/15 家，
+top-40 也只有 2 家</b>，五粮液一块都没进候选。</p>
+<h3>第二层：字段错位</h3>
+<p>即使公司覆盖到了，含数字的块在该公司内部也排得很靠后（今世缘营收金额块排自家第 47 位），
+因为语义检索先命中『讨论收入的段落』，而不是数字表。</p>
+<h3>对照实验：只换召回策略，不动数据、不动模型权重</h3>
 <table>
-<thead><tr><th>召回策略</th><th>覆盖公司数</th><th>Q7 谁增速最快</th><th>Q8 谁亏损</th><th>Q9 毛利率最高</th></tr></thead>
-<tbody>
-<tr><td>A 全局 top-8（默认）</td><td>5 / 15</td><td class="no">失败</td><td class="no">失败</td><td class="warn">碰巧对</td></tr>
-<tr><td>B 全局 top-40</td><td>12–14 / 15</td><td class="no">失败</td><td class="warn">部分</td><td class="ok">成功</td></tr>
-<tr><td>C 分层召回（15 家 × 2 块）</td><td>15 / 15</td><td class="ok">成功</td><td class="ok">成功</td><td class="ok">成功</td></tr>
-</tbody>
+<thead><tr><th>召回策略</th><th>块数</th><th>覆盖</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th><th>Q11</th><th>Q12</th></tr></thead>
+<tbody><tr><td>A 全局top-8</td><td>8</td><td>1/15</td><td class='no'>缺</td><td class='warn'>半</td><td class='ok'>够</td><td class='warn'>半</td><td class='no'>缺</td><td class='warn'>半</td></tr><tr><td>B 全局top-40</td><td>40</td><td>2/15</td><td class='no'>缺</td><td class='warn'>半</td><td class='ok'>够</td><td class='warn'>半</td><td class='no'>缺</td><td class='ok'>够</td></tr><tr><td>C 分层(15家×2)</td><td>30</td><td>15/15</td><td class='no'>缺</td><td class='warn'>半</td><td class='ok'>够</td><td class='ok'>够</td><td class='warn'>半</td><td class='warn'>半</td></tr><tr><td>D 分层(15家×4)</td><td>60</td><td>15/15</td><td class='no'>缺</td><td class='warn'>半</td><td class='ok'>够</td><td class='ok'>够</td><td class='warn'>半</td><td class='warn'>半</td></tr><tr><td>E 分层+关键章节保底</td><td>45</td><td>15/15</td><td class='ok'>够</td><td class='warn'>半</td><td class='ok'>够</td><td class='ok'>够</td><td class='warn'>半</td><td class='ok'>够</td></tr></tbody>
 </table>
-<p class="note">同一份数据、同一个向量模型、同一套权重，<b>只改召回方式</b>，跨公司题就从 0/3 修到 3/3。
-这说明瓶颈在“取哪些块进上下文”，不在“用什么模型算相似度”。</p>
+<p class="note">够＝证据齐全，半＝只齐一部分，缺＝一项都没有。Q7 谁增速最快 / Q8 谁亏损 /
+Q9 毛利率最高 / Q10 茅台vs五粮液 / Q11 三家营收谁高 / Q12 茅台三个数字。<br>
+<b>加大 k（B）救不回覆盖垄断；按公司分层（C/D）立刻修好 Q10；再叠加『主要会计数据』
+章节保底的元数据路由（E）才修好 Q7 与 Q12。代价是上下文从 8 块涨到 45 块；
+而 Q8、Q11 五种策略都没救回来——这两题是真正的『跨实体聚合』。</b></p>
 </div>
 
 <h2>三、页面截图（真实运行结果）</h2>
@@ -186,7 +233,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 
 <h2>四、一页结论 PDF</h2>
 <div class="pdfbox">
-<iframe src="data:application/pdf;base64,JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjEgL1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9CYXNlRm9udCAvU1RTb25nLUxpZ2h0IC9EZXNjZW5kYW50Rm9udHMgWyA8PAovQmFzZUZvbnQgL1NUU29uZy1MaWdodCAvQ0lEU3lzdGVtSW5mbyA8PAovT3JkZXJpbmcgKEdCMSkgL1JlZ2lzdHJ5IChBZG9iZSkgL1N1cHBsZW1lbnQgMAo+PiAvRFcgMTAwMCAvRm9udERlc2NyaXB0b3IgPDwKL0FzY2VudCA3NTIgL0NhcEhlaWdodCA3MzcgL0Rlc2NlbnQgLTI3MSAvRmxhZ3MgNiAvRm9udEJCb3ggWyAtMjUgLTI1NCAxMDAwIDg4MCBdIC9Gb250TmFtZSAvU1RTb25nU3RkLUxpZ2h0IAogIC9JdGFsaWNBbmdsZSAwIC9MZWFkaW5nIDE0OCAvTWF4V2lkdGggMTAwMCAvTWlzc2luZ1dpZHRoIDUwMCAvU3RlbUggOTEgL1N0ZW1WIDU4IAogIC9UeXBlIC9Gb250RGVzY3JpcHRvciAvWEhlaWdodCA1NTMKPj4gL1N1YnR5cGUgL0NJREZvbnRUeXBlMCAvVHlwZSAvRm9udCAKICAvVyBbIDEgWyAyMDcgMjcwIDM0MiA0NjcgNDYyIDc5NyA3MTAgMjM5IDM3NCBdIDEwIFsgMzc0IDQyMyA2MDUgMjM4IDM3NSAyMzggMzM0IDQ2MiBdIDE4IDI2IDQ2MiAyNyAyOCAyMzggCiAgMjkgMzEgNjA1IDMyIFsgMzQ0IDc0OCA2ODQgNTYwIDY5NSA3MzkgNTYzIDUxMSA3MjkgNzkzIAogIDMxOCAzMTIgNjY2IDUyNiA4OTYgNzU4IDc3MiA1NDQgNzcyIDYyOCAKICA0NjUgNjA3IDc1MyA3MTEgOTcyIDY0NyA2MjAgNjA3IDM3NCAzMzMgCiAgMzc0IDYwNiA1MDAgMjM5IDQxNyA1MDMgNDI3IDUyOSA0MTUgMjY0IAogIDQ0NCA1MTggMjQxIDIzMCA0OTUgMjI4IDc5MyA1MjcgNTI0IF0gODEgWyA1MjQgNTA0IDMzOCAzMzYgMjc3IDUxNyA0NTAgNjUyIDQ2NiA0NTIgCiAgNDA3IDM3MCAyNTggMzcwIDYwNSBdIF0KPj4gXSAvRW5jb2RpbmcgL1VuaUdCLVVDUzItSCAvTmFtZSAvRjIgL1N1YnR5cGUgL1R5cGUwIC9UeXBlIC9Gb250Cj4+CmVuZG9iago0IDAgb2JqCjw8Ci9Db250ZW50cyA4IDAgUiAvTWVkaWFCb3ggWyAwIDAgNTk1LjI3NTYgODQxLjg4OTggXSAvUGFyZW50IDcgMCBSIC9SZXNvdXJjZXMgPDwKL0ZvbnQgMSAwIFIgL1Byb2NTZXQgWyAvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJIF0KPj4gL1JvdGF0ZSAwIC9UcmFucyA8PAoKPj4gCiAgL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL1BhZ2VNb2RlIC9Vc2VOb25lIC9QYWdlcyA3IDAgUiAvVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKNiAwIG9iago8PAovQXV0aG9yIChcMzc2XDM3N1wyMjZIXDIyN1kpIC9DcmVhdGlvbkRhdGUgKEQ6MjAyNjA5MjgxNTUxMjYrMDgnMDAnKSAvQ3JlYXRvciAoXCh1bnNwZWNpZmllZFwpKSAvS2V5d29yZHMgKCkgL01vZERhdGUgKEQ6MjAyNjA5MjgxNTUxMjYrMDgnMDAnKSAvUHJvZHVjZXIgKFJlcG9ydExhYiBQREYgTGlicmFyeSAtIFwob3BlbnNvdXJjZVwpKSAKICAvU3ViamVjdCAoXCh1bnNwZWNpZmllZFwpKSAvVGl0bGUgKFwzNzZcMzc3XDIxNSJiXDI0NVwyMjVcMzU2e1ReXDIyM05cMDAwXDIzMHV+XDMyM1wyMTNcMjcyKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjcgMCBvYmoKPDwKL0NvdW50IDEgL0tpZHMgWyA0IDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKOCAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCA0MTM3Cj4+CnN0cmVhbQpHYXVgV0hbIXEuKEI2VWs2S0xIazluRy9zTkNDSkI6cHNxTChFQXFeZ2pocjI/SkBMJDYkUT42bkNkUW00Im5eQXIuIydxV0ZCUXUxTyY5QmtBUk1KX1ZjTjZsZ1FgJkRZOTFbZ0g9Rj1sJj9AWj10OGRtOW4pUTVdajBVYzlyMicuPjtNUDMySy0hX0pvOHJoQGRSLDNTWz5tYDZHbS5STjcnaDYyLUdQVEgnaCUuRk9FNykzQ0xfQXJaM0c9aT5mMSJlcEJGO1dmbzZZIyhQZmZsUlJUbS4lTyJARVtGNCZRXS0oVGo/Z1gsU2BXNm9xYGdGWDw7SFVPJypsbDZEJE0lcERNUSw3aSdYWVQ2TVhSLkhfMGpmRTkxQyM9MSo/KyRgZlV0QTtWYGRgTnRmOlBFbERuZHFpWGhoIlxqJGAqX2IxP0ZYOF9qaGJ0PV1BVTNrIj5ATkU/YiZdOmg3V1VmJGZTXmtKUjZvTHFcV1gzSlN1T1pjXjxwZmxpQEpyR1ozT1NLalY6N18mTFImYS4vKEVIZlUlRiU4LzhwQmBNW1U/NjNraTAuQzNfXVgyTitZa0RwWURgZGxbVGdzTGBwLEleaFMvaVhLO1VJISZdaEZmUGsiW3JWXmI5Okg+USk6akJRZm49RFlqPGEqdCdTaF4zdFlcXyU1YFhDaEkzKGRlUCVWIzI4TT1Ec2VvWkg/WlVOL1xLbC5pWk1QY19sailJLT9wRWVqWjZeU2o1Z3QuY2dZcmYwJUJfMDAxUmpMaDBkal0+Zl5WMztoTShNTj9IJC9ZI09jaiVzblhXJ1BvRTBbdChCLlElV0c9bS1xaCgmaFpVPV9LaCJHVCFWPi08TDEjTVEpbStuaTNLJDRiVVBETTYrb29lZWlUSTg1JlVWbkAnYyklcTwodWkzSiIqTkR0V1BLaUwpVjFdaFJSWmwoWXQib1QmPzk6RTdFOktfNTAlbUc8bVBAXERvdCJASzVGXFdqJmAjNiljXGI7WFprSlg+dTQzR2dEaFs7OyVwQHA+c2pBaGhjTTJqcSQuYTFhKSxiQCRFTUJAKmQ6OixFZyROLkpzXGNJOmspLWxIcWdWYCdhLEo9IyJfIWplT3ViIlVRNjE4PCxlTC8uPXVMZUtpU2hNWU5oJV5wMTIsOyowIWhkcUVdQFNERjNTVUlhMUdIbTNcPTNFWlhnRyNLJyg1LlhsbF91UzwsbnQvZUsyZClqbjA3KXFKLEIwbU1tXW51JjFZZSNoJnBSaiV0LzQ2XnNLX2ApX2piaVVHNjNUVT8nRD5QI0l0JDlmYigvNGpiIzpsb2Y9TV03WFhGOlFyVisnNG5MNU1DKlwtbic1MTI3Q1k2Im4kLmpxSydoXGJkRU9DTCE0Wzw2UUBiXiRCMihVQzpGJFVncj5BPGFHdDVBa0UxPEhscmQnL2tFYi91VGs2bkNgY2o2MSIuPnFmQzEuMjFjXS5MZjhXPichIl5DaikiP1Y8WSdvQ1xtXmZsKWxlXiE1SWg+Ul0nTEdFOWdqOSRMRS0mNj9SPzVAJilqU1REKVhZN3RAdS5EJEZrbVImM20kRWQvQ3JCQ1NkZExVISZrUWxIOyNbXUsiUiJBJypiUT0mRzlIdTdyN3QqRy9canRjc1FfOUhURTpeaUdJVWZgLyVDLEM2Vk1acEtUcUhgTzluRjYoYG4hLWBcTG8wO1RAaUAnJEAnWFg9JTRAJjw1cHJ0ZDQ4XUxeYkE7OStRKSosQGg6Ji1ER2smW0VkZWYhPllkcjw3OiU5UF1OMzhBa2NPREM2MTpPVGd1Zyk0ZjgtTlk3K1Q+M29pZDd0S0ctWEwhMUc/PXFAOCwkMWU8b0I5VVNZW11RVW1RbnAncmclI21kaG0vLy9oYUdpNFU+WWBnLUtCNm0mMG88Yl8yQXVkSnE/VDc2RT5NIXUlYW1SM15BVXJTYElKN0NNRDkhSixYRnVzOTo7MTUrWHJUdWRGLDBOO1gnRVVFM2wxP3BcUko2QUVzQWcsNTQiYzUjQjslaEgiQzxUQ0RtUFs4b0FDcnVhOjw2XkdxPjVML1dQbUpfR0EoQSREJ19QXSxtS3RFT1pOdUQtajNAZDcpblwpZFllXGFaKT5cSlhMaForZ0FUYE9SdCIuLi9GNFVyPEhfTFVEcVgtOyciRGFINmoqRUglQTNTXy4sREkoRE0kSicxPSJrSmRSVGxcLGgrWCFHXmFWYWM/RVB0bHBmQWw4R3E9Jz5kSFA1LU09NiNbNj0val1TXCd1JXQ4cEM3T0AiUFFTaWQ7RFtTPGQ9bjszPFg9WSwsYChTOitBUlBBazZTTSJuM1xuYF5DaidWWUlsYVhpQ1ZCU0osXF4pX3BPJ0I/dG1eSyFmTTRdaFZjcEFENlRLKWM3KWNwUjk6PTBhZWRFP1k8KEdBQkpFNGJPbmQuWGhxZUYmQiZNSlloc1pkOFlOWy91bFcySlZFaXUzZGpFdSRnLDJJYSdATCFINExJamJNL09HODtUNDAvNkxjbDU6ZkAqNk5sOWg4SGtJRkFAayRJT0QsKkA5ZkdXU0JNTEtHZjsnYWpYQi1AJ1s/dEBaS0wtMzRRSyRTRClfIkk9LklnK1xVQmkhQSYhclc3IldCZysvL2YiPEBYYEJJOSIlaS1SakdILzlfaS08RDNnNEgrRWsjTSMncW1iZDMmXWBjRzxBayZxMyVYSyFyWChcU1VXbTBwcCpEIj0xV1dmXVVoSyREXSglPmNeQj07UUUtKVxzK1slOSsyPVNnLk0yVU0jKVNzPCQyNDwpPCoxZEFoZjFNXkdbY3NGSWFXOCJiUSwhTWA2QT8wJS1naitlNCVFUGtybFA1UU8vSS4tO21pLllZLWpaay5UbFksWUBjQmYtb0hQYTdbblhsY3EnTyRsRWRvcG0/aDMzLXNcczc0TUhVbTsxOyJuJVwuRy9BVVZjcVwhZDxKJDYxYC1jKSVvOHNYVmk/Y14nI0wlcnBYKSVxKHBtV3M5MjxHUkArW0VLMUJKQ1RRJzpRYm8+IlFRbUUiZVwqT0VNa1IzU18uLD4vV3JeanRsciNHK1EqPk5yWUVcPilCaz0+KHI/bksuaU0iOSh0MmhVIjhIKkVTaitzOSpGRy1DKEVyQ1RyaXVUSTBBcFxSREksWCprPEhKVzJdaDVMUjBFXT1PSG9jTzgtSF9lSDhLQkQlJ2lYUiwvZDNxSnN0LjsrRURqQWUtYFJAWV1SOigwIVstYTV0IVVPO3A7X1drYVBKUlMjKi5JJmRuSUZuPTNnYUI3U1gmPFQmQE0uJC9pUU0nVilSWG1CJCVzU0MnUWlrKGQyX15gNChgZjxiXXR1ZGRVKVIwPSFKMylgVlNmRFRycENvRU4hITE6bVA3LElfKCxxO24nU1tHalIkMiM6aEIjQltFWHItRTgiciI2PUozUk5VWUA4Q1dHWTA7SXJyQks0M2VXQCJDcj01SSg4dTAhWGhaKltoXGAzTFRFUyRLaVhUUzooXSM9L21oYTk2UUtfQV8zNVlOP0smSV5jak9BZ3BVSj09ISxBWkciWk8/bUAnZm9RUDtWUGBUWipmcyhIRUVkTkcjQWRfPzMwUE5uRW5vaT0pMTQqUDdxPl4rUUszT0B1IyNxWzpQKUNcZCRVXGZMUU8uNkxwXDYvXjduZWo3OixvQEdOPkk9JSVZUShnOi1jW1x1RGo+UW4kNVghcTA5b0pEKmFMPDksWj9yLWtXSzJQRiM/ITc3Qk43MUUpQE1jIj4qb0EzNS5MdEFGK0F0N2FXJS5IJTViO1xRc2sjM1AtNTgrMC4ja2dhbEdqOi9zZ1Y1Jz0jbGZUPl1aYyZ0MWk7VCs9MW1bLW8jP1dWOixiJDVKNio1IS4hNDtJTiU3Jyo5NS4uJEdSWkQ1UGBjLVckclNaZEwzWVBVZE5zMUhnYWw0VSw/Oyl0Z10rJV8kOnBYci5baVwrY2tBRDxhK0gtVCJFaCw2XnJhRzMoRD0mcUtEIiZtK1A2YnFYQzNsMSQ0VnVwS0tZPSgnRGFAKDpYW1U7RCc5MklVdSkhJiMuOzBeO049IVY7W2pgMkxMQlU5NjcqRGBxKDVsIjpbMDhIZj88cTkiaVxOW2BJWGZoJCwuYj1bQFU6QFMnXWwoM3RAaUFoXnFibFk2XiNLSFYiZlpSYDIpK0cuL1QiXz5gN0tuU0wkMVs4V2JvS28wTzpAQDs0T2lnYjRrZTsqMmA0N1ZGN2BwNnNab2FqXCVFXFBYTDNiUnA9TGgqallHTjxHZzRVbDI6NVQ9JGpCWDRjb1Q6QnAyb2ZmOVhMLEMoQSVGZT5oWSdIb2I9ailhO0BkYWJnWUk5IlJwRytxUlNDTCZMSCNNaDBYIUI5Xi1MPl06M2s7XyVXSiFGZjZcYlVmc1I6KlptJ1M2SzhSXCdoQmBFXj1EciYlPkEjO18zbk0qIlUvPnEvWEcrP1dyQiFYSWF0JChbX1RYcWJkPkQhYUtFXCxgXmkrbGgjU0skViNWJG50LWUtJ0xzU29iaXU1LUdULzFDKExgRztHY3FJJl9BcTtTJHEjOWs6bShiWFhUUnI5IlZsZUBzJGtIcUhEPUlvN0BMaitFX0UzakZvL2o3VWtMZzMmT0JsIUptLl1gQy9oNW46aS9YIz4oWDAxYE1INyM9ZDo+aGIyOi46V2R1XFg/QWdzdEQvVjcoN3JNcjBELzFoRW4iXltuO05xaSFTO1NSSlZcZ2JEJFlsYW1UZUlXb21FOid0WSEqOlFgcWZyKE5bZVRiPDIwNHVNYVs5aFNhdEFeJjMwUW4qKV1sVC9BJzVPJD4jME1uYzxkaD08cVJsOVVHTjc3PGpDR2hNaGdvazdJLyNkVF09cj5bMDBrRWBiSDs9QVdCQk9Ycl5qKSQ/cjpmWl8qUCsicVw0WUtrSk5qNmVuMk9NWjtIWV9sJVtXKTltRFVXU3E0YExwZ14lb0dBX1QvYjNXLDlHdGxOQkopaClbblNOVVYxX2UkWTAwKTRlRT0hcyFaRS08RG5uOScpPUxETGJUT14mJF4qUk1icDMnOlQmZlM+bj1CLzxvRGk6U1doOmNlUnJyc2A6MSUockUnU00zZ3NnYCszbjMsYFBAJksvO2JqTD5yNDM3SFcicypHYlpaN2gmbilzX2xebUZVTC0lWyVyR2I8QitTKGZwMjFFcThzLlE8NDNJPTE+MUc2S043bEBcKWsoUmBzNTo9U204c2tjP0RUSitgYVQybSw6Ok9dRWdqKDczJUg5QlpAM1lBXS1LS0Y8Yk8sTDAjQC5jLTddczJtYSMsQDdBQk1aUWhwaSw2MyQocFNqQ2NtRyMsJi9eL0YhP19vcUgjO3AjcVJcclROZHJnIjZ0NyY7X01uJ0NRO1EjVWpsPkNHWGRKZEZXWj1mKyxtUlQ9M0VAVCI9MShzIy02LGQ3NytPYlA1MEhvV1gwNEktNmdeVUBdXi4+TGQ7ODJSNTQsP2FuLiY1XSFzfj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA2MSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDkgMDAwMDAgbiAKMDAwMDAwMTE0MiAwMDAwMCBuIAowMDAwMDAxMzQ1IDAwMDAwIG4gCjAwMDAwMDE0MTMgMDAwMDAgbiAKMDAwMDAwMTc0MSAwMDAwMCBuIAowMDAwMDAxODAwIDAwMDAwIG4gCnRyYWlsZXIKPDwKL0lEIApbPGIzMzc3NGJiMWU2M2M2MTZjODQwOGJiMzRhNWQ5NTIzPjxiMzM3NzRiYjFlNjNjNjE2Yzg0MDhiYjM0YTVkOTUyMz5dCiUgUmVwb3J0TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQgLS0gZGlnZXN0IChvcGVuc291cmNlKQoKL0luZm8gNiAwIFIKL1Jvb3QgNSAwIFIKL1NpemUgOQo+PgpzdGFydHhyZWYKNjAyOAolJUVPRgo=" title="一页结论 PDF"></iframe>
+<iframe src="data:application/pdf;base64,JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjEgL1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9CYXNlRm9udCAvU1RTb25nLUxpZ2h0IC9EZXNjZW5kYW50Rm9udHMgWyA8PAovQmFzZUZvbnQgL1NUU29uZy1MaWdodCAvQ0lEU3lzdGVtSW5mbyA8PAovT3JkZXJpbmcgKEdCMSkgL1JlZ2lzdHJ5IChBZG9iZSkgL1N1cHBsZW1lbnQgMAo+PiAvRFcgMTAwMCAvRm9udERlc2NyaXB0b3IgPDwKL0FzY2VudCA3NTIgL0NhcEhlaWdodCA3MzcgL0Rlc2NlbnQgLTI3MSAvRmxhZ3MgNiAvRm9udEJCb3ggWyAtMjUgLTI1NCAxMDAwIDg4MCBdIC9Gb250TmFtZSAvU1RTb25nU3RkLUxpZ2h0IAogIC9JdGFsaWNBbmdsZSAwIC9MZWFkaW5nIDE0OCAvTWF4V2lkdGggMTAwMCAvTWlzc2luZ1dpZHRoIDUwMCAvU3RlbUggOTEgL1N0ZW1WIDU4IAogIC9UeXBlIC9Gb250RGVzY3JpcHRvciAvWEhlaWdodCA1NTMKPj4gL1N1YnR5cGUgL0NJREZvbnRUeXBlMCAvVHlwZSAvRm9udCAKICAvVyBbIDEgWyAyMDcgMjcwIDM0MiA0NjcgNDYyIDc5NyA3MTAgMjM5IDM3NCBdIDEwIFsgMzc0IDQyMyA2MDUgMjM4IDM3NSAyMzggMzM0IDQ2MiBdIDE4IDI2IDQ2MiAyNyAyOCAyMzggCiAgMjkgMzEgNjA1IDMyIFsgMzQ0IDc0OCA2ODQgNTYwIDY5NSA3MzkgNTYzIDUxMSA3MjkgNzkzIAogIDMxOCAzMTIgNjY2IDUyNiA4OTYgNzU4IDc3MiA1NDQgNzcyIDYyOCAKICA0NjUgNjA3IDc1MyA3MTEgOTcyIDY0NyA2MjAgNjA3IDM3NCAzMzMgCiAgMzc0IDYwNiA1MDAgMjM5IDQxNyA1MDMgNDI3IDUyOSA0MTUgMjY0IAogIDQ0NCA1MTggMjQxIDIzMCA0OTUgMjI4IDc5MyA1MjcgNTI0IF0gODEgWyA1MjQgNTA0IDMzOCAzMzYgMjc3IDUxNyA0NTAgNjUyIDQ2NiA0NTIgCiAgNDA3IDM3MCAyNTggMzcwIDYwNSBdIF0KPj4gXSAvRW5jb2RpbmcgL1VuaUdCLVVDUzItSCAvTmFtZSAvRjIgL1N1YnR5cGUgL1R5cGUwIC9UeXBlIC9Gb250Cj4+CmVuZG9iago0IDAgb2JqCjw8Ci9Db250ZW50cyA4IDAgUiAvTWVkaWFCb3ggWyAwIDAgNTk1LjI3NTYgODQxLjg4OTggXSAvUGFyZW50IDcgMCBSIC9SZXNvdXJjZXMgPDwKL0ZvbnQgMSAwIFIgL1Byb2NTZXQgWyAvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJIF0KPj4gL1JvdGF0ZSAwIC9UcmFucyA8PAoKPj4gCiAgL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL1BhZ2VNb2RlIC9Vc2VOb25lIC9QYWdlcyA3IDAgUiAvVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKNiAwIG9iago8PAovQXV0aG9yIChcMzc2XDM3N1wyMjZIXDIyN1kpIC9DcmVhdGlvbkRhdGUgKEQ6MjAyNjA5MjgxNzE5NDArMDgnMDAnKSAvQ3JlYXRvciAoXCh1bnNwZWNpZmllZFwpKSAvS2V5d29yZHMgKCkgL01vZERhdGUgKEQ6MjAyNjA5MjgxNzE5NDArMDgnMDAnKSAvUHJvZHVjZXIgKFJlcG9ydExhYiBQREYgTGlicmFyeSAtIFwob3BlbnNvdXJjZVwpKSAKICAvU3ViamVjdCAoXCh1bnNwZWNpZmllZFwpKSAvVGl0bGUgKFwzNzZcMzc3XDIxNSJiXDI0NVwyMjVcMzU2e1ReXDIyM05cMDAwXDIzMHV+XDMyM1wyMTNcMjcyKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjcgMCBvYmoKPDwKL0NvdW50IDEgL0tpZHMgWyA0IDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKOCAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCA1ODc3Cj4+CnN0cmVhbQpHYXVfbUNObjdJbmlPVFFtN0dLcjYucSUjLm9DVzxeIUxkS0xIJzlfbjRmWmVFM0E1a2pvTF1KK2Yyc1BjSEpKWlo2X0xALXVNaTJhU1g/Tm0oQExiQXBEOFA/VlxxImRqVmRkTGMtPURMbDVxYykiQWtIVTs+bVJRYmcpXWY9OjQ5TGNBJXFiVGlbWD1MMV09MywiPVRWTSVePlFxSyMvcHFJQSQ4VTlza29HWXJxckZdWjI3WT1ZN0xxcjdScUZsVmNSSylCZ1RPOW5IJ29dRWZhJFQ6ZmdNbkMiWyNlSC05VCEuIik9J0Y6S1JmW208PSReaklwPGFFOFk4OjVuSS9UdCkxWE5OJU4jb15KKWdvYDp1Ny04SW1lb25cRl91Xz5JU3UrX3JdJ0BqOV5uLEtdZTUoOzRJXiMuXEJwL1hBSEcibFN0WllFanR0aCVsWWhoY2w+aykzKz0jSWExcVJbS2kiNEVoTEM6UW4vXkNPU1BzampMSkEzJ2ByUVguTT5rVUxAIlMzRyFbI1lkQV0/aVpDTisqMEY/XUpNVyVmXTBiK09xRjViJlY/XF5wO0VuPClgVTFUYzJkR0o7c2hzJUUyI0FTM2YuIkNqRFEza0FOTy5lZl5GcnRwL0dsSjJNaDBnL2VhJWRlX09qJEljTConWDZgPT81Qy4nLmFJaEo6WVFHLT1lPGpJaGRjKTFSdWNCbksna1BCQCk/bis4ZkpVSHFhJmJfOGdEP11ZVlc7NSRtMS1gJzozbicwX0VyWi1DYUpmbV9SXT5mcGIoUHQlP1E3bkNhb15USDdJQC9qWFRnRl1DMCEhMzsoOnFdXEFvVj8oQldaOGRvT242PFlfYFJybFUmQm9GaEZAUSQiXGJpOWRtP1pMcnEsI1crLyVZdFZcZTlnLGBQNzc5akZBS00uMlxxOEtNPDw0SV1oLSZhLDFAbmxRTFgiOkM3MkZbK15HM0k5aypHXjlsZ09dX1BcIixpQ0JwYmQlOltCayRxazJhaSMlK11pO010PWFzOGVsMlYjcS86dDpAaFQlaTxPIkctQlpZYiEhajRVUl4zRTpuNSZGOmMqLWhyamUwTU5fPW9YTyMvIVJjcyItRUBpbz86T1c2QStXLEtjamctcyVrVVk9KlotIW1ZP2trOCpgOSVmPENAa0BaSiRiQ005M1ZUI04wWktPMydZczBWYGlAUG42Xy8nL1dBO1RAUiVUSCw3RFAwYTUpX05wQ2xIMG9zS1IpcSIyWDJGUGBRWj9Ka3E1cSFuOmRcUVEzW1hQV1EhWStgVkVrWTMkSzojYGhRNC41WEkjOWdeREQ9YlR0WT0hbj86MjFFOHQhOTlHKixpTlEiMCFeYExpKUlXWydNJXUrP2EjRilDcT9IJSdsOjZRYFlGaE9tUWlXLG1tLXBpJCU+IWc1JkBmLjJgOFxDKUIoUWlGMEklR047Y0w0S090TCc3OipDMF9RQFVgSic4OWVLcyU8Pl5JUTd0cjUlay9AO2NMNGMrWT9PW19bVz1lWjo6cVg6LlE4cFhFbjk4U0hlVGxMYERLTE8lPCdpUGEtUkVSQkwuJ20hVicpWU5rc3RDTkshVUdNRGZVVVkzNmElQTgpRjlDKTRnWVRxXCpCMDMnaEdfPUVuWFdRbypTIT0zaTVBWTVvK248PU8hLSdoXGZhSjhcTnQsTVg+cyhFJWgkLHVeQSkhWzUnYWpYKDY2NTojVXRgOz1TXCg3XiFbJz4pOFZGalJAVWpNW3BnUClNQjlIaz80SGgkIS08TFUkUz4ycGciP2NAMyRaPFNNRVQuRjs4I2M1aksuMFR1PWFANWtQW1dnSkxxRSdUakVUJUNsbzlEO3FPWnArKTBqKWldX1lBIyxtQWBTXUlLT2kzO1xnZ1o+KyhUQ1pWNm1TT2dmPkxEdGA6QikqSjI7alNnTjEzRTBzPE83L2I5PCRnVlxLcXQxVHAjVydlRjNaTTlNLz9nYjFRR2xbJ0RHaD0wYjFvKmsvRUYvdEYsOEElKklHIjVGTSkjM2JrTFkzcEk5RjlHam1lSCQ1TW5RXiY2LDA6XVYyczQ/anFNU2NpU2omVTpuUWE8Um43WyNORDltSzxtNWpYQ3FkdW5lPi8uQFwlJWJudT10OGBxOENhUUhkQzliOUttY2JgNyopPUNuP2RnXDhsXVctcFxuODhfMktUNil1VlttNVoxISZCdEpuYGtKRjVXWGxWS2tCV1JbXm5UdGxAN1B0KC5XN0Zabj4xaFZMWl4icE8sOmMuLmlyXTZWLG1iVVcjMGZnXytSJjJEJTklSmtkMEs/MVdCOWE0aVEkVmlwW0E1MkM4W2BRNSRpYjQ0VWJVUEJlcUg3OFw3RUloJzVeX2BmWFpTJzJBXCozcjxlXTRMJ0k/JUNUM2pVbUdUYDRNXSxaMTJCNWYpJ2NRQ19LKFskOTVlXmUhT3F0KCRzcm07YCdKdEU+SUFVI1txYC9CI2xhX10+K0AmOjduN1FiLV8rZ0hTL144TnI5InUraSdaYkozJV9mTm9SN0c/O0JsUVI9UU8wMnAnZ2RTOWdxZzxUVFMpOlVaKThMY3EqVy5PaDtgJCxKQ11ZRWgzRG5vUFBSLWJNczspJEElYiQhRG0vSWA+TVE5RmA5IUJMSExKVDtCXjElMD45ZmdhYEZAWCgrN1ttPDhVIS0qRkAoVShrTFBoO2ZeTWlMcGwhLSpxaEEsa2FLPGAxRD0oQFIiNS0lSiJPIXBDKWRsWFA8NyhSXltMIU0rXChvNi9ZODQzP1s6PClkZWspdUpmZDYhbDdLO1UvYDJaLFpdOCRxNitWb1IhMSdOS25rdFJbQkFBLWQuWWdCOF9WOE1FIiQsNWssU1E4PTsjY0xXQidbOypjQWoqKDwsXGxlbVQiZCIqWm86SGU3L0pMR1lqRTlvVG1DT11kMjpDOio0T2JPRyZhUWxpVCFnWGZKZ1g5Y05cSUNRJEc4JmU6OU9ILlA1ZzV0OzEiaFo3aWA7LC5yRygsbVNEJWFPOzRoVDVaZmEjP0JHY1NgNGI/XkI9VTduK1p1UmwsZGY2KXNOJ2hAWCtLR0wiZyI+R0FYakE5RFQoaUd0KGZNIWhYODJsJEY3L2NHcE5NODkhSFhxLUtBTmk1UyFoUVFDcTtWOFBnOW83VCNIJiZkU2NeJGBmPV8zLkBBb0ZBZG5JQ0glM1NTY2g7RThoOlZxQl5eTSVnTS1lWlBdSmNCdEROb1pWbGwiJDpQTmUtZiFtV18iW1pvKzRYOF1rMVUsKyEqZkxlQ2lQW1JnXHI8PjQlVE9tQkZyWnBSQ21aPXE3blc2ZUtnK21OMG8lIiJEI2AwPkJ0RSpbPjNQT2tGNjxUK0MvMG1QazxXKEFOW2QtOTZZOk49ZTRlaiMqM3RQTXFWYywkVyZtViQnT0o2REE/ZWFPXUxUcSpMLCFoT1RnPVheXktZNyl0YTkvPEckSFI2K0RFPC5ANGJcJmAuJjpFYzJIaGpZOmBMRHNjNVUhJms0TkZYLjwjTVMzakVWN1ZZLCtObEhYLy5OQDU/VkRPXWwyXkdyYDZdIWhDJFJwX0cwU0hdUDpZaW11bWhEO05OYWU9MzRBNzU1XDxyNWs6bUklQV1UZyIyRjM2ODlTXjM9Kk1DU1wwPW5yaS4wNjExckViVipLYHMoTm0+YWFAQXJqXGVKdCFtX0EvV1ppY0lcczZYMiUsJjdpbV82Jz0rczJpckVRWXEqXmBvNmxOcjNfbjAlYXJpRi1ddT9ASloma0JkO0ssZlUzdDNNZGYyaUAqWEJLO0lmMWJkSUlLLktCQTBSRF4/dS5bKCg1cCNzaUc4UDNhaGRDclInZTFVTVNmRmklYnQycFFKR1twI1YuVFZtRyJfdTd1UUo5XDFfNGhkTV1gZi9iYyM4b1c4SC4/SilCQSdZSyonKShGSnFGa1NFY2hITVBQUCc0UCJWLTJFQy9xVXRJWycmQCFiREooZGQpcSNFITVVLVE9aCxiLSc0ZS9bSi87XUcsNjlJOTxrJkFXYFsnazJOOWBZNjFAYmxZMDQ3V3ErMCJkN1lxazFmIkFJXVgvQ2g9ZT5bQzcwRlVxKC5rWl5OaCJgVVM7XmY9Y0VLbnAqcUI0WERJUHNCUmtcI1FTIlAmPWo8IS0ydVFwbG8/OG9dUD5zPl1OXCVmMC8zW0pvXCNAODFsOlEhazs4WGs6LzBlNkkoOlNaU0ZQTThnKGQ6PkxjYyEzT15iSWtXMWc2ZyR0Q2gxJiInOCVHcSonUSlMMVM2SFUia3EzcCFnOT1XOFU6PjRmYyhOQTE4TipUJmkiXmtVbjtnSjBTYGopWDRdV0RfTT9GbTZNInUiYjRaayRLT1hUU2wlIlE4Nl1ubkVBRjlDTEMyNFBNVi1KNjJGUXFEOnBDSC5XNzxYcyRlJ148U1hhXTUrNGNrRmRzbz8pLEwjLF0nOk5cXT9uZihlM1ooRF5nUUBNUTplTyFPUSwlPTxYWT8jUFNqUSYuQV1IMF5cO3NZVzl0VFh0aCpnMDBvaWJHcT4oTFolSU40NC9gOyctKz1vTTlAK2dfUSlUbllaJUlONDQiLWE2VWQrLyY/QDdPSmk1JF0lNSlJImZLQW8xX0kwVGRMNys0Jj1fV0E/IksvNjNbZz9wJk49SiYqZGgrJT8uUD4xMHBkNElpQjs/LiYtVVRWKW4sTT5UOTs1WWNZVGZEXWdKRT9hOCRiaT5EUTJlXTxBWzNEUlZRY3MxSSY1J2EvXnJcVUFPKUN0Z25QLlY7LF8ra0RIO1ZWWFgmdWJOPTJKWWsrX0VANWxPRy5JZDlCW1FrcD9DRiopNW9PJzBBU0ouX0NnZCJFYT1cSTozX2hzcWY/ImgmV2ctLCd0JzU1JC9JalFzPyE2XiddZmkwX21QcUgsYkUwTFNjVzJBWEgpQSY0XTByUEYjLFpcKnRPamomb2spIlkzMVxUUylBakYpdC1gTlY8a01rTHVhaE4nOy1nSTlPZjVjYkQ5aWp1dSpVRy9TRUlJKFElRm5AYTohckBmV0RuSzNcUkoqLExsRipbLy1bSFVeZztDMyNMRHVKLzdBM1NDM2YyZydaWyNvcWlAMmMxbUJIO2Q5PXR1VVxQUFhCPnQhNlBuK2JDbUgvXHNJVk1ZUWxQOCxrQlVlZ2tQU1EqSTEyLlxHQ1B0Pj90cE5xOVFwaVNsNVBSK1tYcjRUTHImSCwpJ2JIc0RLJSNSYWxHbS9tN04uQm9ROUpSRG08WWVgMDUqYEUmIytZcjlKOmRkPG1HQyVDbCIjQWhSZEJTKGlXT2VoTVxkYyE5Tz4iYzYnYlRQJzgvZFkoPDM9Il8qRT5GKVc+OlJMRVFpMHJscFE5VFdPSHA9ZSUiay0jPjJZb0pvSnUrSWhMPE8zay9fXG0nLSJHP2hCcS5nVyc9cWFOKiI/bzg4SD44V0BibEBJL0pGI1NkKVc2QUUuW0ZvYHArPmtnVSVlMD0yNDMqWV8qTiRYJVhFVWBGQDs/WjpqVlVAJmQ7ImNNX0hCSXQtPnBxN1piZTwkJEIuLy1NN2EjQ1ldMWtJSzY3LzxyV0guJnJrVnVbJzpAInJQNlpOYzpHMC9mLG1WKzc8WnR1MCo9OXM/TzdIOnAoLklcPSQ4KSJgUEdDanEwdDlvYkpXOChoPmRFM08kUEUwPEM4VkhtWmdUP3VdLj9LPDwoUFwjcWluKT8xM1RhUltcXW1uXW1dVkpALWY1OCU8KU0rW2ZmJiFjYTVwS0RlUWpXYVJoUCY3Q1BTMS0+XjxJS2snRWRBMCNdZEElUE9UP15UUTVhSDxrOkovTDpOZlhcbltbLypdVS5LREJ0XVBuMVMsWk0jL2kkN1lbOm0hLjA2Y0xNOEAsYTVAOTZkRitCJVJ0KmgtWjZZUDxBN2VHaVc+IWZmXCNTKXFuIWkiKUkzP1A4KzdtYEBcX3BLMllIT1lVIUE7UCouLz5UQio8PGFhRmttcC9HYShMVzI6ZW5SOTVjRy06ZDJSWHJcMDtwPTlxL2BUOUYxUVFta0pUM15tXEAsMz85V1xvaDtBdGNaITlDVE0tbUtKKDJVQlB0SHVEUSRoWT5HUjF0bTJmYTAxMDpnKzcmImViXWIkYShuIk1uSFpkVnBYMzZLaVxbZWszNzJdOF5FQC9ATzFELExbVFliKlhgcXNaRDI+VktPZTg6TUQ/aj5WIltsTzgiSkZaIXAwX0dETmE0SjFwNiIyWz1fOUNkMDc+IW9XTW11VVhMYFg7Z0tubWsqSChIQUReRDxGTDhGX11qNVU2az9UaD5wSz8zSHRgWic+X2VydUAqZStNYT40TjhpY2xEZXRgSScnWG00cG5SKi82cEJ0T0teKU1GP1pBYjBEMGJfRU0iQkFjPz03WFlJbHU0JGlOMyNKSTJfbjxHTzdScldYbk9tKldEYV1CMW5QQitGRmZUVypkXVk/Z0xoQHNxYFhMaCtMU2lUKEVYK19MRl0pbjI9SW5eVGJVbDZUPTs4MGckTihXS18wQD9DXmZlSE8iNyRjRjxET1xvKDU3cDU8JjlEWG1iJ05MP28uT3VPW1J0aHM2IycidGhNZDYpP2NsSF9uZGdtODtWQFU7aVZwZV1wVUxTVS1mZm1LVFk7QFtDXSg3Ry9wQFI0LSUzTCQ1YTxWTkxBJnRfPT9ITz1LL29BXzorRCYicSM3XStcb0VnKHJxU0kmLlIxbiMxZEtzclMuSk0yUCdCanVfLkxrL2IoIXIsSWliI1lXbT8hVm9TSG9LblJzazR0X3FBNF4tRkZNX01ySTFBPzFQIztlaHNiTFZWVlBqUyVvbjpkTDgrUSVQXF09S3A2Zis/XjtwQ1UnQSZJSmxuZXNhcnUvXDwldFQ+Wj1LUyhBL3NXR0FEckBobjtaO3UqJDBHdStJckkuI08ubiEpRDtrMFg3KlZwZ1oyXllwMyptU0hwY2NiUkJEO2EsaVxNMUNTQW8hYFovb2sxPzI9SUVCXFQ9bShRYlBVc2ByTzlkZFFWZ2laMjY8MlBkMiNkOyFEMS9kRmNeSHI9VjJhMzVSZjsoaSVFNW0lIzhZPTVaZGxSY1QpPkooK0wrZV4vP0AxKCdmNztIRyNtR2VIMkwybmBTX1I3UFhPJjhBVCw8VC1BbzwmX2VVTVEoWHFcLSVIK25KQzRYIiZEYU8+Oixxa1g1PFkuME41NFxNRGtOQXNRPi1uNlsoV2ZTQipuYFVFVko2VidoTl9pKmBJOWpVJnIpcWlOIWtNImFnPWVhL1YkOUknPFIpXjgqPV5TR1VBZ2RUcScuN0kuRDJRTDtzcVJUPDleP1tUVHI4LUFYVkVGVlZAaW9UMGJINCNANCFeNSg8czwoI3M+ZyNnK1I5SWBXWl48QkFeTkQ8MF02QT1GZHBSKmVXLVokNSJSQF42MlAzQCdhNj1edS0wSj5cJTlhQl1WKSMtJnRqY25KWS9BWjEmak49XSVKIj4qSE82LD9STzghVmB1VSslTFU1NCdOPkRhIVhbWzUjZm1QWFxlQFxAdD0uV0EmX0knJ1dIVWJlWi5JLWptT0FDVyRoMnJKb05UOEpiTW8+R0ZfNkJEMjNNRjx0KkA/biFsJzV0RVo4N2xqamJJSGFyI0ZAYCZYJU5cVlxFRGMvW0ZGRDYjNXJRXChNJzZPKkU+RFRxXD5edGNoKlc1M11wMiNaXFNrXS9gUF10YGAxckxATio0dD8xUnFSJS5cJEdrJ01cTXVbLE5RWmhlVSE1Q0JmQ1ExXj49Q1NaLmxOS2sjakxVTUtsN04lZkJNfj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA2MSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDkgMDAwMDAgbiAKMDAwMDAwMTE0MiAwMDAwMCBuIAowMDAwMDAxMzQ1IDAwMDAwIG4gCjAwMDAwMDE0MTMgMDAwMDAgbiAKMDAwMDAwMTc0MSAwMDAwMCBuIAowMDAwMDAxODAwIDAwMDAwIG4gCnRyYWlsZXIKPDwKL0lEIApbPDYyYzZlNjI0YWZiMWFlZjAxNmVhMjUzMjg0ZDMxYTZlPjw2MmM2ZTYyNGFmYjFhZWYwMTZlYTI1MzI4NGQzMWE2ZT5dCiUgUmVwb3J0TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQgLS0gZGlnZXN0IChvcGVuc291cmNlKQoKL0luZm8gNiAwIFIKL1Jvb3QgNSAwIFIKL1NpemUgOQo+PgpzdGFydHhyZWYKNzc2OAolJUVPRgo=" title="一页结论 PDF"></iframe>
 </div>
 <p class="note">若浏览器不显示内嵌 PDF，可直接下载仓库里的 <code>06_结论/一页结论.pdf</code>，
 或本地运行 <code>python 06_结论/生成_一页结论.py</code> 重新生成。</p>
@@ -200,33 +247,37 @@ python 02_解析/解析_财报.py          # pdfplumber：文字 + 表格按行�
 python 03_索引/切块.py               # 按章节切块，带公司/章节/页码
 python 03_索引/构建_索引.py --backend sbert --tag bge
 python 04_问答/app.py                # 问答页面 http://127.0.0.1:8791
-python 05_评估/评估_10题.py           # 10 题 × 3 种检索模式逐题记录
-python 05_评估/对比_跨公司召回策略.py  # 全局 top-8 / top-40 / 分层召回对照
-python 06_结论/生成_一页结论.py       # 一页结论 PDF</pre>
-<p class="note">年报 PDF（约 30MB）不进仓库，用上面的脚本一键重建；API key 只放 <code>.env</code>，<code>.gitignore</code> 已排除。
-问答页面在无 key 时自动降级为纯检索模式。</p>
+python 05_评估/评估_15题.py           # 15 题 × 3 种检索模式逐题记录
+python 05_评估/对比_召回策略.py       # 5 种召回策略对照实验
+python 06_结论/生成_一页结论.py       # 一页结论 PDF
+python 07_展示/生成_展示页.py         # 本页面</pre>
+<p class="note">年报 PDF（约 30MB）不进仓库，用上面的脚本一键重建；API key 只放 <code>.env</code>，
+<code>.gitignore</code> 已排除。问答页面在无 key 时自动降级为纯检索模式。</p>
 </div>
 
 <h2>六、结论：同一批财报，什么该建库、什么该微调</h2>
 <div class="card">
 <h3 style="margin-top:0">① 建库（检索）</h3>
 <p>点名了公司、要某个具体数字或事实的问题。答案是原文里的一行，检索能精确命中、还带得出处
-（本次 7/7，最好第 1 位命中）；年报年年换，库可以增量重建。</p>
+（本次 9/9，最好第 1 位）；年报年年换，库可以增量重建。</p>
 <h3>② 微调</h3>
-<p>要稳定口径、术语、组织答案方式的问题（例如“用董秘的语气解释为什么下滑”）。检索只能抄原文，
-学不会“先行业、再公司、后措施”的叙述结构——这类才是微调的位置。</p>
+<p>要稳定口径、术语、组织答案方式的问题（例如"用董秘的语气解释为什么下滑"）。检索只能抄原文，
+学不会"先行业、再公司、后措施"的叙述结构——这类才是微调的位置。</p>
 <h3>③ 两个都不对</h3>
-<p>跨全部实体聚合、排序、比较。top-k 语义截断做不了全集扫描，微调更不该用来记数字。
-正解是把关键指标 ETL 成结构化宽表再读表。</p>
+<p>跨实体聚合、排序、取极值。本次 5 道跨公司题在全局 top-8 下只答对 1 道（还是碰巧）；
+分层召回 + 章节路由能救回一部分，但 Q8/Q11 五种策略都没救回，且上下文要涨 5 倍。
+把 15 家的关键指标抽成一张结构化宽表，再让模型读表，才是稳定解。</p>
 </div>
 
-<h2>注脚（诚实交代两件事）</h2>
+<h2>注脚（诚实交代三件事）</h2>
 <div class="card">
 <p>① 第一版标准答案我自己就错了一题：Q8 只写了酒鬼酒 −3,395 万，漏了亏得更多的顺鑫农业 −1.52 亿，
-是回原文核对才发现的；Q9 原本写成“口径不统一无法排序”，核对后修正为贵州茅台 91.23%。
-这反过来印证：人对数字的记忆不可靠，检索到的原文才可靠。</p>
-<p>② 本次 10 题的判定<b>全部基于检索</b>（gold 块是否被召回进 top-8、召回了哪些块、错在哪），
-不依赖任何大模型；页面里的 LLM 答案生成只是可选增强，无 key 时自动降级。</p>
+是回原文核对才发现的。这反过来印证：人对数字的记忆不可靠，检索到的原文才可靠。</p>
+<p>② 过程中修掉一个自己的实现缺陷：检索候选池大小原本跟着 top-k 变，导致同一个问题在
+top-2 与 top-60 下排序不一致、分层召回取块不稳；改成固定取全部候选后结果才自洽
+（03_索引/检索.py）。数字以修完后的为准。</p>
+<p>③ 本次 15 题的判定<b>全部基于检索</b>（证据是否进 top-8、召回了哪些块、错在哪），
+不依赖任何大模型；页面里的 LLM 答案生成只是可选增强，无 key 自动降级。</p>
 </div>
 
 <footer>

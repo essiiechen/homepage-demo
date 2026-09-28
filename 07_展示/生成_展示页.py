@@ -3,15 +3,17 @@
 
 - 截图压缩后以 base64 内嵌，PDF 以 data URI 内嵌 => 仓库不需要二进制文件，
   Vercel / GitHub Pages / 任意静态托管都能直接跑。
-- 逐题记录从 05_评估/逐题记录.csv 读取，保证页面数字与评估结果同源。
+- 逐题记录从 05_评估/逐题记录.csv、策略矩阵从 对比_召回策略.json 读取，
+  保证页面数字与评估结果同源。
 """
 import base64
 import csv
 import io
 import json
-import pathlib
+from collections import Counter
+from pathlib import Path
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "index.html"
 
 SHOTS = [
@@ -33,14 +35,8 @@ def b64_img(path, width=1200, quality=78):
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def load_rows():
-    p = ROOT / "05_评估" / "逐题记录.csv"
-    with open(p, encoding="utf-8-sig") as f:
-        return list(csv.DictReader(f))
-
-
 def esc(s):
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (str(s) or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 CSS = """
@@ -60,7 +56,7 @@ h2{font-size:20px;margin:34px 0 14px;padding-left:11px;border-left:4px solid #0f
 h3{font-size:16px;margin:22px 0 10px;color:#0f766e}
 p{margin:10px 0}
 .card{background:#fff;border:1px solid #e4e7eb;border-radius:12px;padding:20px 22px;
- box-shadow:0 1px 3px rgba(16,24,40,.05)}
+ box-shadow:0 1px 3px rgba(16,24,40,.05);overflow-x:auto}
 .lead{background:#fff8e6;border:1px solid #f0d69a;border-radius:12px;padding:18px 20px;font-size:15px}
 .lead b{color:#8a5a00}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
@@ -84,7 +80,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-s
 pre{background:#1f2328;color:#e6edf3;padding:14px 16px;border-radius:10px;overflow:auto}
 .note{font-size:13px;color:#667085;margin-top:8px}
 .pdfbox{background:#fff;border:1px solid #e4e7eb;border-radius:12px;padding:12px}
-.pdfbox iframe{width:100%;height:620px;border:0;border-radius:8px;display:block}
+.pdfbox iframe{width:100%;height:640px;border:0;border-radius:8px;display:block}
 a{color:#0f766e}
 footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:13px;color:#667085}
 @media(max-width:640px){h1{font-size:22px}table{font-size:13px}}
@@ -92,21 +88,34 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid #e4e7eb;font-size:1
 
 
 def main():
-    rows = load_rows()
-    shots = {k: b64_img(ROOT / p) for k, _, p in SHOTS}
+    # ---------- 数据 ----------
+    with open(ROOT / "05_评估" / "逐题记录.csv", encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    strat = json.loads((ROOT / "05_评估" / "对比_召回策略.json").read_text(encoding="utf-8"))
     pdf = "data:application/pdf;base64," + base64.b64encode(
-        (ROOT / "06_结论" / "一页结论.pdf").read_bytes()
-    ).decode()
+        (ROOT / "06_结论" / "一页结论.pdf").read_bytes()).decode()
+    shots = {k: b64_img(ROOT / p) for k, _, p in SHOTS}
 
-    # 题型汇总
-    single = [r for r in rows if r["类型"].startswith("单公司")]
-    cross = [r for r in rows if r["类型"].startswith("跨公司")]
-    s_ok = sum(1 for r in single if r["gold块召回"] == "是")
-    c_ok = sum(1 for r in cross if r["gold块召回"] == "是")
+    g_total, g_ok = Counter(), Counter()
+    for r in rows:
+        g_total[r["分组"]] += 1
+        if r["答对没有"].startswith(("能答对", "碰巧")):
+            g_ok[r["分组"]] += 1
+    n_ok = sum(1 for r in rows if r["答对没有"].startswith(("能答对", "碰巧")))
 
+    order = ["A 全局top-8", "B 全局top-40", "C 分层(15家×2)", "D 分层(15家×4)",
+             "E 分层+关键章节保底"]
+    qids = [7, 8, 9, 10, 11, 12]
+    cell, blocks, cover = {}, {}, {}
+    for r in strat:
+        cell[(r["策略"], r["题号"])] = r["判定"]
+        blocks[r["策略"]] = r["送进模型的块数"]
+        cover[r["策略"]] = r["覆盖公司数"]
+    MARK = {"✓ 够答": ("够", "ok"), "△ 部分": ("半", "warn"), "✗ 不够": ("缺", "no")}
+
+    # ---------- 逐题表 ----------
     trs = []
     for r in rows:
-        ok = r["gold块召回"] == "是"
         judge = r["答对没有"]
         cls = "ok" if judge == "能答对" else ("warn" if judge.startswith("碰巧") else "no")
         top = " ｜ ".join(r["召回块（hybrid top-8）"].split(" ｜ ")[:4]) + " …"
@@ -115,8 +124,31 @@ def main():
 <td>{esc(r['问题'])}</td>
 <td>{esc(r['标准答案（回原文核过）'])}</td>
 <td style="font-size:12.5px;color:#475467">{esc(top)}<br><span class="tag">覆盖 {esc(r['覆盖公司数'])}</span></td>
-<td class="{cls}">{esc(judge)}{'' if ok else '<br><span style="font-weight:400;font-size:12.5px;color:#667085">' + esc(r['错在哪']) + '</span>'}</td>
+<td class="{cls}">{esc(judge)}<br><span style="font-weight:400;font-size:12.5px;color:#667085">{esc(r['错在哪'])}</span></td>
 </tr>""")
+
+    # ---------- 分组表 ----------
+    TIP = {
+        "① 单公司·一个数字": "答案就是原文里的一行：全部召回，最好第 1 位命中，出处精确到『公司 + 页码』",
+        "② 跨公司·全景（无候选集）": "top-8 最多覆盖 8 家公司，『15 家里谁最…』结构上覆盖不全；唯一『对』的是碰巧",
+        "③ 跨公司·受限（给了候选集）": "对照组：即使点名了公司也全错——全局排序会垄断名额（Q10 只覆盖 1/15 家）",
+        "④ 单公司·要拼多块": "要 3 个数字，top-8 被同一章节占满，只召回 1 个",
+    }
+    gtr = ""
+    for g in ["① 单公司·一个数字", "② 跨公司·全景（无候选集）",
+              "③ 跨公司·受限（给了候选集）", "④ 单公司·要拼多块"]:
+        ok, tot = g_ok[g], g_total[g]
+        cls = "ok" if ok == tot else ("no" if ok == 0 else "warn")
+        gtr += (f"<tr><td>{esc(g)}</td><td>{tot}</td>"
+                f"<td class='{cls}'>{ok}/{tot}</td><td>{esc(TIP[g])}</td></tr>")
+
+    # ---------- 策略矩阵 ----------
+    mtr = ""
+    for s in order:
+        mtr += (f"<tr><td>{esc(s)}</td><td>{blocks[s]}</td><td>{cover[s]}/15</td>"
+                + "".join(
+                    f"<td class='{MARK[cell[(s, q)]][1]}'>{MARK[cell[(s, q)]][0]}</td>"
+                    for q in qids) + "</tr>")
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -133,7 +165,7 @@ def main():
 <div class="badges">
 <span class="badge">方向：知识库（检索）</span>
 <span class="badge">2,698 页 / 3,988 张表格 / 9,762 个文本块</span>
-<span class="badge">10 题逐题记录 · 判定基于检索，不依赖大模型</span>
+<span class="badge">15 题逐题记录 + 5 种召回策略对照 · 判定基于检索，不依赖大模型</span>
 </div>
 </div></header>
 
@@ -141,10 +173,11 @@ def main():
 
 <h2>一句话结论</h2>
 <div class="lead">
-<b>单公司事实题，检索 7/7 全部命中；跨公司全景题，top-8 检索下 gold 块 0/3。</b><br>
-根因不是模型不行、也不是数据缺失，而是 <b>top-k 语义截断</b>：一次只取 8 块，最多覆盖 8 家公司，
-“15 家里谁最……”这类题<b>结构上不可能</b>召回全。只换召回策略（分层召回：每家公司各取 2 块）、
-不改任何模型参数，覆盖率 5/15 → 15/15，3/3 全部召回。
+<b>点名公司要一个数字的问题，检索 9/9 全部命中；要跨实体聚合、排序、取极值的问题，
+全局 top-k 检索 5 道只对 1 道（还是碰巧），且病根有两层——覆盖垄断 + 字段错位。</b><br>
+对照实验证明：只换召回策略（按公司分层 + 关键章节保底）能把大部分失败修回来，
+但代价是上下文涨 5 倍，且仍有题救不回来——<b>这类题的正解是先 ETL 成结构化宽表</b>；
+要稳定口径、叙述方式才轮到微调。
 </div>
 
 <h2>数据规模</h2>
@@ -156,32 +189,43 @@ def main():
 <div class="stat"><div class="n">241万</div><div class="t">字</div></div>
 </div>
 
-<h2>一、10 道题的检索结果</h2>
+<h2>一、15 道题的检索结果</h2>
 <div class="card">
-<p style="margin-top:0">判据：<b>含标准答案的原文块（gold 块）是否被召回进 top-8</b>。标准答案全部回原文核对过，
-不是凭印象写的（我第一版金标准自己错了一题，见文末注脚）。</p>
+<p style="margin-top:0">判据：<b>标准答案需要的证据（哪家公司 + 哪个数字）是否进 top-8</b>。
+标准答案全部回原文核对过，不是凭印象写的（我第一版金标准自己错了一题，见文末注脚）。</p>
+<table>
+<thead><tr><th>题型分组</th><th>题数</th><th>检索可答</th><th>表现与原因</th></tr></thead>
+<tbody>{gtr}</tbody>
+</table>
+<p class="note"><b>合计 {n_ok}/{len(rows)} 题检索可答</b>（其中 1 题属碰巧，不算真会）。
+逐题明细见下表。</p>
 <table>
 <thead><tr><th>题目</th><th>问题</th><th>标准答案</th><th>hybrid 召回块（前 4）</th><th>判定 / 错在哪</th></tr></thead>
 <tbody>
 {chr(10).join(trs)}
 </tbody>
 </table>
-<p class="note">汇总：单公司事实题 <b class="ok">{s_ok}/{len(single)} gold 块召回成功</b>；
-跨公司全景题 <b class="no">{c_ok}/{len(cross)}</b>（Q9 判定“碰巧能答对”——茅台恰好挤进召回子集，但只比较 5 家就下“最高”结论，换问法即翻车）。</p>
 </div>
 
-<h2>二、为什么翻车：换召回策略，不动模型</h2>
+<h2>二、病根不在数据、也不在模型，在『哪些块能到答案面前』（两层）</h2>
 <div class="card">
+<h3 style="margin-top:0">第一层：覆盖垄断</h3>
+<p>全局排序按语义相似度取块，名额会被和问句最像的那一两家吃掉。
+最典型的是 Q10「茅台 vs 五粮液谁毛利率高」——<b>点名了两家公司，top-8 只覆盖 1/15 家，
+top-40 也只有 2 家</b>，五粮液一块都没进候选。</p>
+<h3>第二层：字段错位</h3>
+<p>即使公司覆盖到了，含数字的块在该公司内部也排得很靠后（今世缘营收金额块排自家第 47 位），
+因为语义检索先命中『讨论收入的段落』，而不是数字表。</p>
+<h3>对照实验：只换召回策略，不动数据、不动模型权重</h3>
 <table>
-<thead><tr><th>召回策略</th><th>覆盖公司数</th><th>Q7 谁增速最快</th><th>Q8 谁亏损</th><th>Q9 毛利率最高</th></tr></thead>
-<tbody>
-<tr><td>A 全局 top-8（默认）</td><td>5 / 15</td><td class="no">失败</td><td class="no">失败</td><td class="warn">碰巧对</td></tr>
-<tr><td>B 全局 top-40</td><td>12–14 / 15</td><td class="no">失败</td><td class="warn">部分</td><td class="ok">成功</td></tr>
-<tr><td>C 分层召回（15 家 × 2 块）</td><td>15 / 15</td><td class="ok">成功</td><td class="ok">成功</td><td class="ok">成功</td></tr>
-</tbody>
+<thead><tr><th>召回策略</th><th>块数</th><th>覆盖</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th><th>Q11</th><th>Q12</th></tr></thead>
+<tbody>{mtr}</tbody>
 </table>
-<p class="note">同一份数据、同一个向量模型、同一套权重，<b>只改召回方式</b>，跨公司题就从 0/3 修到 3/3。
-这说明瓶颈在“取哪些块进上下文”，不在“用什么模型算相似度”。</p>
+<p class="note">够＝证据齐全，半＝只齐一部分，缺＝一项都没有。Q7 谁增速最快 / Q8 谁亏损 /
+Q9 毛利率最高 / Q10 茅台vs五粮液 / Q11 三家营收谁高 / Q12 茅台三个数字。<br>
+<b>加大 k（B）救不回覆盖垄断；按公司分层（C/D）立刻修好 Q10；再叠加『主要会计数据』
+章节保底的元数据路由（E）才修好 Q7 与 Q12。代价是上下文从 8 块涨到 45 块；
+而 Q8、Q11 五种策略都没救回来——这两题是真正的『跨实体聚合』。</b></p>
 </div>
 
 <h2>三、页面截图（真实运行结果）</h2>
@@ -206,33 +250,37 @@ python 02_解析/解析_财报.py          # pdfplumber：文字 + 表格按行�
 python 03_索引/切块.py               # 按章节切块，带公司/章节/页码
 python 03_索引/构建_索引.py --backend sbert --tag bge
 python 04_问答/app.py                # 问答页面 http://127.0.0.1:8791
-python 05_评估/评估_10题.py           # 10 题 × 3 种检索模式逐题记录
-python 05_评估/对比_跨公司召回策略.py  # 全局 top-8 / top-40 / 分层召回对照
-python 06_结论/生成_一页结论.py       # 一页结论 PDF</pre>
-<p class="note">年报 PDF（约 30MB）不进仓库，用上面的脚本一键重建；API key 只放 <code>.env</code>，<code>.gitignore</code> 已排除。
-问答页面在无 key 时自动降级为纯检索模式。</p>
+python 05_评估/评估_15题.py           # 15 题 × 3 种检索模式逐题记录
+python 05_评估/对比_召回策略.py       # 5 种召回策略对照实验
+python 06_结论/生成_一页结论.py       # 一页结论 PDF
+python 07_展示/生成_展示页.py         # 本页面</pre>
+<p class="note">年报 PDF（约 30MB）不进仓库，用上面的脚本一键重建；API key 只放 <code>.env</code>，
+<code>.gitignore</code> 已排除。问答页面在无 key 时自动降级为纯检索模式。</p>
 </div>
 
 <h2>六、结论：同一批财报，什么该建库、什么该微调</h2>
 <div class="card">
 <h3 style="margin-top:0">① 建库（检索）</h3>
 <p>点名了公司、要某个具体数字或事实的问题。答案是原文里的一行，检索能精确命中、还带得出处
-（本次 7/7，最好第 1 位命中）；年报年年换，库可以增量重建。</p>
+（本次 9/9，最好第 1 位）；年报年年换，库可以增量重建。</p>
 <h3>② 微调</h3>
-<p>要稳定口径、术语、组织答案方式的问题（例如“用董秘的语气解释为什么下滑”）。检索只能抄原文，
-学不会“先行业、再公司、后措施”的叙述结构——这类才是微调的位置。</p>
+<p>要稳定口径、术语、组织答案方式的问题（例如"用董秘的语气解释为什么下滑"）。检索只能抄原文，
+学不会"先行业、再公司、后措施"的叙述结构——这类才是微调的位置。</p>
 <h3>③ 两个都不对</h3>
-<p>跨全部实体聚合、排序、比较。top-k 语义截断做不了全集扫描，微调更不该用来记数字。
-正解是把关键指标 ETL 成结构化宽表再读表。</p>
+<p>跨实体聚合、排序、取极值。本次 5 道跨公司题在全局 top-8 下只答对 1 道（还是碰巧）；
+分层召回 + 章节路由能救回一部分，但 Q8/Q11 五种策略都没救回，且上下文要涨 5 倍。
+把 15 家的关键指标抽成一张结构化宽表，再让模型读表，才是稳定解。</p>
 </div>
 
-<h2>注脚（诚实交代两件事）</h2>
+<h2>注脚（诚实交代三件事）</h2>
 <div class="card">
 <p>① 第一版标准答案我自己就错了一题：Q8 只写了酒鬼酒 −3,395 万，漏了亏得更多的顺鑫农业 −1.52 亿，
-是回原文核对才发现的；Q9 原本写成“口径不统一无法排序”，核对后修正为贵州茅台 91.23%。
-这反过来印证：人对数字的记忆不可靠，检索到的原文才可靠。</p>
-<p>② 本次 10 题的判定<b>全部基于检索</b>（gold 块是否被召回进 top-8、召回了哪些块、错在哪），
-不依赖任何大模型；页面里的 LLM 答案生成只是可选增强，无 key 时自动降级。</p>
+是回原文核对才发现的。这反过来印证：人对数字的记忆不可靠，检索到的原文才可靠。</p>
+<p>② 过程中修掉一个自己的实现缺陷：检索候选池大小原本跟着 top-k 变，导致同一个问题在
+top-2 与 top-60 下排序不一致、分层召回取块不稳；改成固定取全部候选后结果才自洽
+（03_索引/检索.py）。数字以修完后的为准。</p>
+<p>③ 本次 15 题的判定<b>全部基于检索</b>（证据是否进 top-8、召回了哪些块、错在哪），
+不依赖任何大模型；页面里的 LLM 答案生成只是可选增强，无 key 自动降级。</p>
 </div>
 
 <footer>
@@ -244,7 +292,7 @@ python 06_结论/生成_一页结论.py       # 一页结论 PDF</pre>
 """
     OUT.write_text(html, encoding="utf-8")
     print(f"已生成 {OUT}  {OUT.stat().st_size/1024:.0f} KB")
-    print(f"单公司 {s_ok}/{len(single)}，跨公司 {c_ok}/{len(cross)}")
+    print(f"检索可答 {n_ok}/{len(rows)}")
 
 
 if __name__ == "__main__":

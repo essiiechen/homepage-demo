@@ -186,7 +186,10 @@ class Index:
         if code:
             cand = [i for i, c in enumerate(self.chunks) if c["code"] == code]
 
-        pool = max(topk * 6, 60)
+        # pool 必须是常数，不能随 topk 变：否则同一个问题在 topk=2 与 topk=60 下
+        # 看到的候选池不同，RRF 分数也不同，分层召回（每家取 top-2）取到的块会不自洽。
+        # 这里直接取全部候选（几千块排序可忽略不计），保证排序与 topk 无关。
+        pool = len(cand)
         ranks: dict[int, dict] = {}
 
         def add(source: str, order: list[int]):
