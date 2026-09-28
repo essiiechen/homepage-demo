@@ -1,0 +1,25 @@
+# ---- 密钥与配置：绝不进仓库 ----
+.env
+*.key
+*_keys*
+
+# ---- 原始 PDF：不必进仓库，下载脚本可一键重建 ----
+data/pdf/
+
+# ---- 解析/索引产物：体积大且可由脚本重建 ----
+data/pages/
+data/index/
+data/chunks.jsonl
+data/manifest.json
+data/解析统计.json
+data/切块统计.json
+
+# ---- 依赖与运行时 ----
+tmp/
+site/
+__pycache__/
+*.pyc
+nohup.out
+
+# ---- 系统 ----
+.DS_Store

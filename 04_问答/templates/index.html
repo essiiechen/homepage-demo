@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>白酒上市公司年报问答库 · 2025年报</title>
+<style>
+:root{
+  --bg:#f6f8fc; --panel:#ffffff; --line:#e3e9f2; --ink:#16233a; --ink2:#5a6b85;
+  --brand:#2b5fd9; --brand2:#eaf0ff; --accent:#0f766e; --warn:#b45309;
+  --shadow:0 1px 2px rgba(20,40,80,.06),0 8px 24px rgba(20,40,80,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;}
+a{color:var(--brand)}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+
+header.top{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+h1{margin:0;font-size:23px;letter-spacing:.3px}
+h1 small{font-size:13px;font-weight:400;color:var(--ink2);margin-left:8px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
+  padding:4px 12px;font-size:12.5px;color:var(--ink2);box-shadow:var(--shadow)}
+.chip b{color:var(--ink);font-weight:600}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+
+.searchbar{display:flex;gap:10px;align-items:center}
+.searchbar input{flex:1;min-width:240px;font-size:15.5px;padding:12px 14px;
+  border:1px solid var(--line);border-radius:10px;outline:none;background:#fbfcfe;color:var(--ink)}
+.searchbar input:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px var(--brand2)}
+button.primary{background:var(--brand);color:#fff;border:0;border-radius:10px;
+  padding:12px 22px;font-size:15px;font-weight:600;cursor:pointer}
+button.primary:hover{background:#2450bd}
+button.primary:disabled{background:#9db4e8;cursor:not-allowed}
+
+.opts{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--ink2);align-items:center}
+.opts label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+select,input[type=number]{font:inherit;padding:5px 8px;border:1px solid var(--line);
+  border-radius:7px;background:#fff;color:var(--ink)}
+.tips{margin-top:12px;font-size:12.5px;color:var(--ink2)}
+.tips span.ex{display:inline-block;background:var(--brand2);color:#1c3f96;border:1px solid #d3e0ff;
+  border-radius:7px;padding:3px 10px;margin:3px 5px 0 0;cursor:pointer;font-size:12.5px}
+.tips span.ex:hover{background:#dbe6ff}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:940px){.grid{grid-template-columns:1fr}}
+
+.sect-title{font-size:13px;font-weight:700;color:var(--ink2);letter-spacing:.6px;
+  text-transform:uppercase;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.sect-title .n{background:var(--brand2);color:#1c3f96;border-radius:6px;padding:1px 8px;font-size:12px}
+
+#answer{white-space:pre-wrap;font-size:15px;line-height:1.85}
+#answer .empty{color:var(--ink2);font-size:14px}
+citeflag{background:#eefbf7;color:#0b6b60;border:1px solid #c9ece4;border-radius:5px;
+  padding:0 5px;font-size:12.5px;font-style:normal}
+.metabar{margin-top:12px;font-size:12px;color:var(--ink2);border-top:1px dashed var(--line);padding-top:10px}
+.err{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:9px;
+  padding:9px 12px;font-size:13px;margin-bottom:12px}
+
+.hit{border:1px solid var(--line);border-radius:11px;margin-bottom:10px;overflow:hidden;background:#fff}
+.hit .hd{display:flex;gap:9px;align-items:center;padding:9px 12px;background:#fafcff;
+  cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--line)}
+.hit .rk{background:var(--brand);color:#fff;border-radius:6px;width:22px;height:22px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;flex:none}
+.hit .co{font-weight:700;color:var(--ink)}
+.hit .pg{background:#eef2f9;border-radius:5px;padding:1px 7px;color:#39506f;font-size:12px}
+.hit .sec{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:290px}
+.hit .tag{margin-left:auto;color:var(--ink2);font-size:11.5px;flex:none}
+.hit .tag .s{background:#f1f5fb;border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:4px}
+.hit .bd{padding:11px 13px;font-size:13px;color:#2a3a56;white-space:pre-wrap;
+  max-height:230px;overflow:auto;display:none;background:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.3px;line-height:1.65}
+.hit.open .bd{display:block}
+mark.hl{background:#fff3b8;color:#6b4a00;border-radius:3px;padding:0 1px}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid #c7d6f5;border-top-color:var(--brand);
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+footer{color:var(--ink2);font-size:12px;text-align:center;margin-top:26px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>白酒上市公司年报问答库<small>2025 年度报告 · 检索增强问答（RAG）</small></h1>
+  <div class="stats">
+    <span class="chip"><b>{{ n_companies }}</b> 家公司</span>
+    <span class="chip"><b>{{ n_pages }}</b> 页</span>
+    <span class="chip"><b>{{ n_tables }}</b> 张表格</span>
+    <span class="chip"><b>{{ n_chunks }}</b> 个文本块</span>
+    <span class="chip">向量：<b>{{ backend }}</b></span>
+    <span class="chip">LLM：<b>{% if has_key %}{{ model }}{% else %}未配置（纯检索）{% endif %}</b></span>
+  </div>
+</header>
+
+<div class="card">
+  <div class="searchbar">
+    <input id="q" placeholder="输入问题，例如：哪家白酒公司 2025 年酒类毛利率最高？" autocomplete="off">
+    <button class="primary" id="go">提问</button>
+  </div>
+  <div class="opts">
+    <label>检索模式
+      <select id="mode">
+        <option value="hybrid">混合 BM25 + 向量（RRF 融合）</option>
+        <option value="bm25">仅 BM25（字面）</option>
+        <option value="vector">仅向量（语义）</option>
+      </select>
+    </label>
+    <label>向量后端
+      <select id="tag">
+        <option value="bge">bge-small-zh（神经）</option>
+        <option value="tfidf">TF-IDF+SVD（零依赖）</option>
+      </select>
+    </label>
+    <label>公司
+      <select id="code"><option value="">全部公司</option>
+        {% for c,n in companies %}<option value="{{c}}">{{n}}</option>{% endfor %}
+      </select>
+    </label>
+    <span style="color:#8a97ad">（选了公司就只在这家年报里找）</span>
+    <label>召回块数 <input id="topk" type="number" value="8" min="1" max="30" style="width:62px"></label>
+    <label>召回策略
+      <select id="strategy">
+        <option value="global">全局 top-k</option>
+        <option value="stratified">分层召回（每家公司各取 2 块）</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="usellm" checked> 用大模型生成答案</label>
+  </div>
+  <div class="tips">
+    试试这些题：
+    <span class="ex">贵州茅台2025年营业总收入是多少？</span>
+    <span class="ex">五粮液酒类产品的毛利率是多少？</span>
+    <span class="ex">泸州老窖2025年归母净利润同比下降了多少？</span>
+    <span class="ex">哪家白酒公司2025年毛利率最高？</span>
+    <span class="ex">15家公司里，谁的营收增速最快？</span>
+    <span class="ex">山西汾酒的省内外收入分别占比多少？</span>
+    <span class="ex">洋河股份的经销商数量变化了多少？</span>
+    <span class="ex">哪些公司提到了"库存去化"？</span>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <p class="sect-title">答案 <span class="n" id="ansState">待提问</span></p>
+    <div id="llmErr"></div>
+    <div id="answer"><span class="empty">左侧输入问题后，这里会给出带出处（公司 + 页码）的答案。</span></div>
+    <div class="metabar" id="meta"></div>
+  </div>
+
+  <div class="card">
+    <p class="sect-title">召回的块 <span class="n" id="hitN">0</span></p>
+    <div id="hits"><span class="empty" style="color:#5a6b85;font-size:13.5px">每个块都带公司、章节、页码；点标题展开原文，命中词会高亮。</span></div>
+  </div>
+</div>
+
+<footer>数据来源：巨潮资讯网（cninfo.com.cn）公开年报 PDF · 本页不上传任何数据，全部本地检索</footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let loading = false;
+
+$('.tips').addEventListener('click', e => {
+  if (e.target.classList.contains('ex')) { $('#q').value = e.target.textContent.trim(); ask(); }
+});
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter' && !loading) ask(); });
+$('#go').addEventListener('click', () => { if (!loading) ask(); });
+
+function esc(s){return (s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
+// 把 [xxx P12] 渲染成绿色出处标记
+function fmtAnswer(t){
+  return esc(t).replace(/[\[【]([^\]【]{0,40}?)P(\d+)[\]】]/g,
+    (m,a,b)=>`<citeflag>${a.trim()} P${b}</citeflag>`);
+}
+
+async function ask(){
+  const q = $('#q').value.trim();
+  if(!q) return;
+  loading = true; $('#go').disabled = true;
+  $('#ansState').innerHTML = '<span class="spin"></span>检索中';
+  $('#answer').innerHTML = '<span class="empty">正在检索并生成答案…</span>';
+  $('#llmErr').innerHTML = ''; $('#meta').innerHTML = '';
+  try{
+    const r = await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({q, mode:$('#mode').value, tag:$('#tag').value,
+        strategy:$('#strategy').value,
+        topk:+$('#topk').value, code:$('#code').value, llm:$('#usellm').checked})});
+    const d = await r.json();
+    $('#hitN').textContent = d.hits.length;
+    $('#hits').innerHTML = d.hits.map(h => `
+      <div class="hit${h.rank<=2?' open':''}">
+        <div class="hd" onclick="this.parentNode.classList.toggle('open')">
+          <span class="rk">${h.rank}</span>
+          <span class="co">${h.name}</span>
+          <span class="pg">P${h.page}</span>
+          <span class="sec">${esc(h.section)}${h.subsection?' / '+esc(h.subsection):''}</span>
+          <span class="tag">${h.kind==='table'?'表格':'正文'}
+            <span class="s">bm25 ${h.by.bm25||'-'}</span>
+            <span class="s">vec ${h.by.vector||'-'}</span>
+            <span class="s">${h.n_chars}字</span></span>
+        </div>
+        <div class="bd">${h.html}</div>
+      </div>`).join('') || '<span class="empty">没有召回任何块。</span>';
+
+    if(d.llm_ok){
+      $('#answer').innerHTML = fmtAnswer(d.answer);
+      $('#ansState').textContent = '已生成';
+    }else{
+      $('#answer').innerHTML = '<span class="empty">未生成答案' +
+        (d.llm_error? '（' + esc(d.llm_error) + '）' : '') + '，请展开右侧召回块查看原文。</span>';
+      $('#ansState').textContent = '纯检索';
+    }
+    if(d.llm_error) $('#llmErr').innerHTML = `<div class="err">${esc(d.llm_error)}</div>`;
+    $('#meta').innerHTML = `检索 ${d.stats.retrieval_ms}ms ｜ 总计 ${d.stats.total_ms}ms ｜ 后端 ${d.stats.backend} ｜ 候选 ${d.stats.n_chunks} 块 ｜ 引用 ${d.cites.length} 处 ｜ 本轮覆盖 ${d.n_companies}/15 家公司`;
+  }catch(e){
+    $('#answer').innerHTML = '<span class="empty">请求失败：' + esc(String(e)) + '</span>';
+    $('#ansState').textContent = '出错';
+  }finally{
+    loading=false; $('#go').disabled=false;
+  }
+}
+</script>
+</body>
+</html>
