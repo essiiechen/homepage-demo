@@ -3,7 +3,7 @@
   "framework": null,
   "functions": {
     "api/ask.py": {
-      "maxDuration": 25,
+      "maxDuration": 10,
       "includeFiles": ["data/**", "lib/**"]
     }
   }
