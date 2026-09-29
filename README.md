@@ -15,28 +15,34 @@ top-8 却只覆盖 1/15 家）② 字段错位（含数字的表格块在自家�
 
 ## 线上问答知识库（可交互，能真的提问）
 
-**仓库根就是这个问答应用本身**，由 Vercel 直接部署——推到 GitHub 即自动上线：
+**仓库根就是这个问答应用本身，且不需要任何服务器**——推到 GitHub，Vercel 静态托管即上线：
 
 | 路径 | 作用 |
 |---|---|
-| `/` | 问答页面（静态 `index.html`，可输入任意问题，答案带公司 + 章节 + PDF 页码） |
-| `POST /api/ask` | Serverless 函数（`api/ask.py`），返回答案 + 召回块 + 耗时 |
-| `GET /api/health` | 自检：块数 / 公司数 / 加载耗时 |
+| `/` | 问答页面（静态 `index.html`） |
+| `assets/index.bin.gz` | BM25 倒排表 + 词表 + idf，gzip 后 1.16MB，首屏下载 |
+| `assets/meta.json` | 每块的公司 / 章节 / 页码 / 类型（244KB） |
+| `assets/dict.txt.gz` | jieba 高频词形 12 万条，前端分词用（612KB） |
+| `assets/text/<代码>.json` | 单家公司的正文，按命中情况按需拉取（15 片共 8.97MB） |
 
-代码只有三处：`api/ask.py`（纯标准库 WSGI）、`lib/retriever.py`（BM25 + 分层召回）、
-`lib/answer.py`（答案合成）；检索数据 `data/*.pkl.gz` 预构建后随仓库一起走（4MB）。
+**为什么检索放在浏览器里**：最早走的是 Vercel 的 Python Serverless 函数
+（`api/ask.py` + `lib/retriever.py`，代码仍在 `10_Vercel/python_api/`），但构建一直失败——
+Vercel dashboard 里的 Framework Preset 会**覆盖** `vercel.json`，这个仓库原本是个人主页项目，
+还在按旧框架构建。与其在 dashboard 里一轮轮猜，不如把检索搬到浏览器：静态托管没有构建这一步，
+必定能上线，别人也一定能打开。
 
-**线上为什么是纯 BM25**：Vercel 函数有 250MB 包体上限，CPU 版 torch 一个就 180MB+，
-bge 神经 embedding 装不进去。这不是降级妥协——15 题实测纯 BM25 + 自适应召回 **9/15**，
-与本地 bge 混合检索**持平**（见 `10_Vercel/README.md` 的四行对照表）。
-线上后端与本地检索逐条对齐，由 `10_Vercel/自检_与本地一致.py` 守着，必须 15/15 才推。
+代价与收益都记在这里：
 
-线上没有 LLM key（key 不能进仓库），答案走**年报原文摘录**，每条带公司 + 页码可回原文核对；
-在 Vercel 项目设置里加 `OPENROUTER_API_KEY` 环境变量即自动切换为大模型作答。
+- 体积：正文 462 万字（13.5MB UTF-8）不能一次下完，所以**按公司切成 15 片、命中哪家拉哪家**；
+  打分只需要倒排表，首屏 1.4MB 就能开始提问。
+- 精度：前端用索引词表 + jieba 高频词形做最大正向匹配代替 jieba。15 题实测
+  **auto 9/15，与 Python 版逐题完全一致**（`node 10_Vercel/评估_前端版.js`）。
+  中途踩过一个具体的坑：只靠年报词表时「多少」不在词表里，被切成「多」+「少」两个高频字，
+  噪声把 Q6 挤掉了——导出 jieba 高频词形后修复。
+- 附带好处：问什么都不会离开你的浏览器，不需要 key，也没有函数冷启动和超时。
 
-- 本地完整版（bge 后端、可切混合/BM25/向量）仍是 `04_问答/app.py`，见「快速开始」第 4 步。
-- 部署副本 `09_部署/`（94MB，含两套索引）给需要自托管 Python 进程的场景用，
-  不进仓库。
+- 本地完整版（bge 神经 embedding、可切混合/BM25/向量）仍是 `04_问答/app.py`，见「快速开始」第 4 步。
+- 部署副本 `09_部署/`（94MB，含两套索引）给需要自托管 Python 进程的场景用，不进仓库。
 
 ## 静态成果展示页（评估报告）
 
@@ -67,7 +73,7 @@ bge 神经 embedding 装不进去。这不是降级妥协——15 题实测纯 B
 
 ```bash
 pip install -r requirements.local.txt     # 本地全流程（含 torch/sentence-transformers）
-# 仓库根的 requirements.txt 是给 Vercel 装包用的，只有 jieba —— 别装错
+# 线上是纯静态前端，不需要装任何东西；Python 版依赖见 10_Vercel/python_api/requirements.txt
 
 # 1. 下载年报（可重复跑，已有 sha1 会跳过）
 python 01_下载/下载_财报.py
@@ -116,16 +122,21 @@ python 07_展示/生成_展示页.py
            截图.py             # 问答页面截图（交付附件）
 07_展示/   生成_展示页.py      # 生成单文件展示页（截图/PDF 内嵌）→ 07_展示/index.html
 09_部署/   线上问答应用的部署副本：应用代码 + 切块 + 两套索引（94MB，不含年报原件）
-10_Vercel/ 线上版的构建与自检脚本（产物写仓库根 data/，不参与部署）
+10_Vercel/ 前端版构建与自检脚本；python_api/ 是已停用的 Python Serverless 版
 
----- 以下是 Vercel 部署结构（仓库根）----
-index.html        问答页面（Vercel 静态托管，站点首页）
-api/ask.py        Serverless 函数：POST /api/ask（纯标准库 WSGI，无 flask）
-lib/retriever.py  BM25 + 公司/章节先验 + 分层召回 + 自适应策略
-lib/answer.py     答案合成：有 key 走大模型，没 key 走年报原文摘录
-data/*.pkl.gz     预构建索引（chunks 2.2MB + 倒排表 1.7MB，跟随仓库部署）
-vercel.json       函数配置（includeFiles 把 data/、lib/ 打进函数）
-requirements.txt  线上依赖：只有 jieba（torch 装不下，见上）
+---- 以下是 Vercel 部署结构（仓库根，纯静态）----
+index.html              问答页面（站点首页）
+assets/retriever.js     检索核心（浏览器与 Node 共用同一份，评估跑的就是它）
+assets/app.js           页面交互：加载资源、渲染、按需拉正文
+assets/index.bin.gz     BM25 倒排表（gzip 1.16MB）+ meta/config/dict + text/<代码>.json
+```
+
+重建前端资源（改了切块或索引后必跑）：
+
+```bash
+PYTHONPATH=tmp/site python3 10_Vercel/预构建_索引.py    # data/*.pkl.gz
+PYTHONPATH=tmp/site python3 10_Vercel/构建_前端索引.py  # assets/*
+node 10_Vercel/评估_前端版.js                          # 15 题，必须与 Python 版同分
 ```
 
 ## 评估结果摘要（15 题，四组）

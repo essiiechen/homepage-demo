@@ -14,7 +14,9 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "index.html"
+# 输出必须在 07_展示/ 下：仓库根的 index.html 是静态问答应用的入口，不能被覆盖
+# （这个坑真实发生过——脚本一度写到根上，把问答页盖掉了，靠 git checkout 才救回来）
+OUT = ROOT / "07_展示" / "index.html"
 
 # 真正能提问的问答应用（Flask + 混合检索）已部署在这里；
 # 本页只是评估报告，所以要把它放在最显眼的位置，别让看的人以为这就是系统本身。
