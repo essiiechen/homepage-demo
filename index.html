@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>白酒上市公司年报问答库 · 2025年报</title>
-<meta name="description" content="15 家白酒上市公司 2025 年报的检索问答库：BM25 检索 + 带出处（公司/页码）的答案">
+<meta name="description" content="15 家白酒上市公司 2025 年报的检索问答库：BM25 检索 + 带出处（公司/页码）的答案，纯静态、检索在浏览器里完成">
 <style>
 :root{
   --bg:#f6f8fc; --panel:#ffffff; --line:#e3e9f2; --ink:#16233a; --ink2:#5a6b85;
@@ -24,6 +24,8 @@ h1 small{font-size:13px;font-weight:400;color:var(--ink2);margin-left:8px}
 .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
   padding:4px 12px;font-size:12.5px;color:var(--ink2);box-shadow:var(--shadow)}
 .chip b{color:var(--ink);font-weight:600}
+.chip.state{background:#eefbf7;border-color:#c9ece4;color:#0b6b60}
+.chip.state.bad{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
@@ -90,11 +92,12 @@ footer{color:var(--ink2);font-size:12px;text-align:center;margin-top:26px;line-h
 <header class="top">
   <h1>白酒上市公司年报问答库<small>2025 年度报告 · 检索增强问答（RAG）</small></h1>
   <div class="stats">
-    <span class="chip"><b>15</b> 家公司</span>
-    <span class="chip"><b>2698</b> 页</span>
-    <span class="chip"><b>3988</b> 张表格</span>
-    <span class="chip"><b>9762</b> 个文本块</span>
-    <span class="chip">检索：<b>BM25</b></span>
+    <span class="chip state" id="boot">初始化…</span>
+    <span class="chip"><b id="c-company">15</b> 家公司</span>
+    <span class="chip"><b id="c-page">2698</b> 页</span>
+    <span class="chip"><b id="c-table">3988</b> 张表格</span>
+    <span class="chip"><b id="c-chunk">9762</b> 个文本块</span>
+    <span class="chip">检索：<b>BM25</b>（浏览器内）</span>
   </div>
 </header>
 
@@ -127,10 +130,11 @@ footer{color:var(--ink2);font-size:12px;text-align:center;margin-top:26px;line-h
     <label>展示块数 <input id="topk" type="number" value="8" min="1" max="40" style="width:62px"></label>
   </div>
   <div class="note">
-    线上版走纯 BM25 检索（Vercel 函数包体上限 250MB，装不下 torch），默认
-    <strong>自适应策略</strong>：问题点名一家公司就走全局 top-k，没点名或点名多家就走分层召回。
+    这个页面<strong>不需要服务器</strong>：检索完全在你的浏览器里跑，问什么都不会上传到任何地方。
+    首次打开会下载约 1.1MB 的倒排索引（gzip），之后每次提问按公司按需再取正文分片。
+    默认<strong>自适应策略</strong>：问题点名一家公司就走全局 top-k，没点名或点名多家就走分层召回。
     答案是<strong>年报原文摘录</strong>——每条都带公司 + 页码，可直接回年报核对。
-    同样的 15 题实测：本地 bge 混合 9/15，线上纯 BM25 + 自适应 9/15。
+    同样的 15 题实测：本地 bge 混合 9/15，本页纯 BM25 + 自适应 <strong>9/15</strong>。
   </div>
   <div class="tips">
     试试这些题：
@@ -148,7 +152,6 @@ footer{color:var(--ink2);font-size:12px;text-align:center;margin-top:26px;line-h
 <div class="grid">
   <div class="card">
     <p class="sect-title">答案 <span class="n" id="ansState">待提问</span></p>
-    <div id="llmErr"></div>
     <div id="answer"><span class="empty">输入问题后，这里给出带出处（公司 + 页码）的答案。</span></div>
     <div class="metabar" id="meta"></div>
   </div>
@@ -161,70 +164,12 @@ footer{color:var(--ink2);font-size:12px;text-align:center;margin-top:26px;line-h
 
 <footer>
   数据来源：巨潮资讯网（cninfo.com.cn）公开年报 PDF · 检索在你的浏览器里完成，问什么都不会上传到任何地方<br>
-  检索后端 BM25（k1=1.5, b=0.75） + 公司/章节元数据先验 + 分层召回；答案默认取原文摘录，未调用大模型
+  检索后端 BM25（k1=1.5, b=0.75） + 公司/章节元数据先验 + 分层召回；答案取年报原文摘录，未调用大模型<br>
+  15 题实测：自适应策略 9/15（与本地 bge 向量混合检索持平）
 </footer>
 </div>
 
-<script>
-const $ = s => document.querySelector(s);
-let loading = false;
-
-$('.tips').addEventListener('click', e => {
-  if (e.target.classList.contains('ex')) { $('#q').value = e.target.textContent.trim(); ask(); }
-});
-$('#q').addEventListener('keydown', e => { if (e.key === 'Enter' && !loading) ask(); });
-$('#go').addEventListener('click', () => { if (!loading) ask(); });
-
-function esc(s){return (s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
-
-// [贵州茅台（600519）第21页] 这类出处标记渲染成绿色小标签
-function fmtAnswer(t){
-  return esc(t).replace(/[\[【]([^\]】]{0,40}?)第(\d+)页[\]】]/g,
-    (m,a,b)=>`<citeflag>${a.trim()} 第${b}页</citeflag>`);
-}
-
-async function ask(){
-  const q = $('#q').value.trim();
-  if(!q) return;
-  loading = true; $('#go').disabled = true;
-  $('#ansState').innerHTML = '<span class="spin"></span>检索中';
-  $('#answer').innerHTML = '<span class="empty">正在检索…</span>';
-  $('#llmErr').innerHTML = ''; $('#meta').innerHTML = '';
-  try{
-    const r = await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({q, strategy:$('#strategy').value, topk:+$('#topk').value,
-        code:$('#code').value, llm:true})});
-    const d = await r.json();
-    if(d.error){ $('#answer').innerHTML = '<span class="empty">'+esc(d.error)+'</span>';
-      $('#ansState').textContent='出错'; return; }
-    $('#hitN').textContent = d.hits.length;
-    $('#hits').innerHTML = d.hits.map(h => `
-      <div class="hit${h.rank<=2?' open':''}">
-        <div class="hd" onclick="this.parentNode.classList.toggle('open')">
-          <span class="rk">${h.rank}</span>
-          <span class="co">${h.name}</span>
-          <span class="pg">第${h.page}页</span>
-          <span class="sec">${esc(h.section)}${h.subsection?' / '+esc(h.subsection):''}</span>
-          <span class="tag">${h.kind==='table'?'表格':'正文'}
-            <span class="s">bm25 #${h.by}</span>
-            <span class="s">${h.n_chars}字</span></span>
-        </div>
-        <div class="bd">${h.html}</div>
-      </div>`).join('') || '<span class="empty">没有召回任何块。</span>';
-
-    $('#answer').innerHTML = d.answer ? fmtAnswer(d.answer)
-      : '<span class="empty">没有摘到原文，请展开右侧召回块查看。</span>';
-    $('#ansState').textContent = '已生成';
-    if(d.llm_error) $('#llmErr').innerHTML = `<div class="err">${esc(d.llm_error)}</div>`;
-    $('#meta').innerHTML = `检索 ${d.stats.retrieval_ms}ms ｜ 加载 ${d.stats.load_ms}ms ｜ 总计 ${d.stats.total_ms}ms`
-      + ` ｜ ${d.stats.backend} ｜ 候选 ${d.stats.n_chunks} 块 ｜ 本轮覆盖 ${d.n_companies}/15 家公司`;
-  }catch(e){
-    $('#answer').innerHTML = '<span class="empty">请求失败：' + esc(String(e)) + '</span>';
-    $('#ansState').textContent = '出错';
-  }finally{
-    loading=false; $('#go').disabled=false;
-  }
-}
-</script>
+<script src="assets/retriever.js"></script>
+<script src="assets/app.js"></script>
 </body>
 </html>
