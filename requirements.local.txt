@@ -1,0 +1,15 @@
+# 【本地全流程依赖】下载年报 PDF / 解析 / 建索引 / 离线评估 / 出图用。
+# 文件名刻意不叫 requirements.txt —— 那个文件是给 Vercel 装包用的，
+# 一旦把 torch、sentence-transformers 放进去，线上部署会因包体超限直接失败。
+#
+# 安装： pip install -r requirements.local.txt
+flask>=3.0
+rank_bm25>=0.2.2
+jieba>=0.42
+scikit-learn>=1.4
+numpy>=1.26
+sentence-transformers>=3.0
+pdfplumber>=0.11
+requests>=2.31
+reportlab>=4.0
+playwright>=1.45

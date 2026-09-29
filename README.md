@@ -15,32 +15,35 @@ top-8 却只覆盖 1/15 家）② 字段错位（含数字的表格块在自家�
 
 ## 线上问答知识库（可交互，能真的提问）
 
-- **https://baijiu-report-rag.app-tencent.workbuddy.host/**
-- 这是 `04_问答/app.py` 跑起来的完整问答系统：可以输入任意问题，选
-  **全局 top-k / 分层召回**、**混合 / BM25 / 向量** 检索模式，答案逐块带出
-  **公司 + 年报章节 + PDF 页码**。线上跑的是 bge 神经 embedding 后端（未降级）。
-- 线上部署目录是 `09_部署/`（只含应用代码 + 切块 + 两套索引，94MB，不含年报原件）：
-  ```bash
-  cd 09_部署
-  pip install torch --index-url https://download.pytorch.org/whl/cpu
-  pip install -r requirements.deploy.txt
-  HOST=0.0.0.0 DISABLE_LLM=1 python 04_问答/app.py   # 监听 $PORT
-  ```
-  `DISABLE_LLM=1` 是给公网部署用的：关掉大模型生成，避免烧个人 key 的额度
-  ——作业评的是检索本身，没有 key 也完全可跑。
-- **一个诚实的提醒**：bge 后端要在查询时加载模型，装 `sentence-transformers`
-  会拖进 torch。若线上装不上，应用会自动降级到零依赖的 TF-IDF+SVD 后端
-  （同一批切块、同一套权重）。两套后端的差距我实测过，见下面「向量后端对照」。
+**仓库根就是这个问答应用本身**，由 Vercel 直接部署——推到 GitHub 即自动上线：
+
+| 路径 | 作用 |
+|---|---|
+| `/` | 问答页面（静态 `index.html`，可输入任意问题，答案带公司 + 章节 + PDF 页码） |
+| `POST /api/ask` | Serverless 函数（`api/ask.py`），返回答案 + 召回块 + 耗时 |
+| `GET /api/health` | 自检：块数 / 公司数 / 加载耗时 |
+
+代码只有三处：`api/ask.py`（纯标准库 WSGI）、`lib/retriever.py`（BM25 + 分层召回）、
+`lib/answer.py`（答案合成）；检索数据 `data/*.pkl.gz` 预构建后随仓库一起走（4MB）。
+
+**线上为什么是纯 BM25**：Vercel 函数有 250MB 包体上限，CPU 版 torch 一个就 180MB+，
+bge 神经 embedding 装不进去。这不是降级妥协——15 题实测纯 BM25 + 自适应召回 **9/15**，
+与本地 bge 混合检索**持平**（见 `10_Vercel/README.md` 的四行对照表）。
+线上后端与本地检索逐条对齐，由 `10_Vercel/自检_与本地一致.py` 守着，必须 15/15 才推。
+
+线上没有 LLM key（key 不能进仓库），答案走**年报原文摘录**，每条带公司 + 页码可回原文核对；
+在 Vercel 项目设置里加 `OPENROUTER_API_KEY` 环境变量即自动切换为大模型作答。
+
+- 本地完整版（bge 后端、可切混合/BM25/向量）仍是 `04_问答/app.py`，见「快速开始」第 4 步。
+- 部署副本 `09_部署/`（94MB，含两套索引）给需要自托管 Python 进程的场景用，
+  不进仓库。
 
 ## 静态成果展示页（评估报告）
 
-- `index.html`（单文件、零依赖，截图与一页结论 PDF 已 base64 内嵌），
+- `07_展示/index.html`（单文件、零依赖，截图与一页结论 PDF 已 base64 内嵌），
   由 `python 07_展示/生成_展示页.py` 从 `05_评估/逐题记录.csv` + `05_评估/对比_召回策略.json`
   + `06_结论/` 重新生成，保证页面上的每个数字与评估结果同源。
-  页面顶部有指向线上问答知识库的入口。
-- 部署到 Vercel：仓库根目录已有 `vercel.json`（静态托管，`index.html` 为入口），
-  在 Vercel 里 Import 本仓库即可，无需任何构建步骤。（Vercel 只能托管这页静态报告，
-  真正能提问的问答应用需要 Python 进程，走上面那条链接。）
+  它是脚本产物、不是仓库根的 `index.html`（那个是问答页面），别弄混。
 
 > 说明：`06_结论/*.png` 与 `一页结论.pdf` 是脚本产物（二进制，共约 2.4MB）。用 `git push`
 > 会一并提交；若走 GitHub API 只能推文本，可跳过它们——线上页 `index.html` 已把这两项内嵌，
@@ -63,7 +66,8 @@ top-8 却只覆盖 1/15 家）② 字段错位（含数字的表格块在自家�
 ## 快速开始
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.local.txt     # 本地全流程（含 torch/sentence-transformers）
+# 仓库根的 requirements.txt 是给 Vercel 装包用的，只有 jieba —— 别装错
 
 # 1. 下载年报（可重复跑，已有 sha1 会跳过）
 python 01_下载/下载_财报.py
@@ -110,8 +114,18 @@ python 07_展示/生成_展示页.py
            汇总_逐题记录.py    # 汇总为逐题记录.csv/.md（纯检索口径：证据是否召回）
 06_结论/   生成_一页结论.py    # 一页 PDF（交付附件）
            截图.py             # 问答页面截图（交付附件）
-07_展示/   生成_展示页.py      # 生成单文件 index.html（截图/PDF 内嵌，可直接静态托管）
+07_展示/   生成_展示页.py      # 生成单文件展示页（截图/PDF 内嵌）→ 07_展示/index.html
 09_部署/   线上问答应用的部署副本：应用代码 + 切块 + 两套索引（94MB，不含年报原件）
+10_Vercel/ 线上版的构建与自检脚本（产物写仓库根 data/，不参与部署）
+
+---- 以下是 Vercel 部署结构（仓库根）----
+index.html        问答页面（Vercel 静态托管，站点首页）
+api/ask.py        Serverless 函数：POST /api/ask（纯标准库 WSGI，无 flask）
+lib/retriever.py  BM25 + 公司/章节先验 + 分层召回 + 自适应策略
+lib/answer.py     答案合成：有 key 走大模型，没 key 走年报原文摘录
+data/*.pkl.gz     预构建索引（chunks 2.2MB + 倒排表 1.7MB，跟随仓库部署）
+vercel.json       函数配置（includeFiles 把 data/、lib/ 打进函数）
+requirements.txt  线上依赖：只有 jieba（torch 装不下，见上）
 ```
 
 ## 评估结果摘要（15 题，四组）

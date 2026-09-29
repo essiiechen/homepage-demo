@@ -1,7 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "echo 'static site: index.html only, no build step'",
-  "outputDirectory": ".",
-  "cleanUrls": true
+  "functions": {
+    "api/ask.py": {
+      "maxDuration": 25,
+      "includeFiles": ["data/**", "lib/**"]
+    }
+  }
 }

@@ -1,10 +1,7 @@
-flask>=3.0
-rank_bm25>=0.2.2
-jieba>=0.42
-scikit-learn>=1.4
-numpy>=1.26
-sentence-transformers>=3.0
-pdfplumber>=0.11
-requests>=2.31
-reportlab>=4.0
-playwright>=1.45
+# 【线上依赖】Vercel 只读仓库根的 requirements.txt 来装包，所以这里只能放轻量的。
+# 本地跑全流程（下载/解析/建索引/出图）用的依赖在 requirements.local.txt。
+#
+# 刻意不装 torch / sentence-transformers：CPU 版 torch 一个就 180MB+，
+# 会撑爆 Vercel 函数 250MB 的包体上限。线上因此走纯 BM25，
+# 15 题离线评估：本地 bge 混合 9/15，线上纯 BM25 + 自适应召回 9/15（见 05_评估/）。
+jieba==0.42.1

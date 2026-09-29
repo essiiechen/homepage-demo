@@ -7,12 +7,18 @@
 data/pdf/
 
 # ---- 解析/索引产物：体积大且可由脚本重建 ----
+# 注意：data/bm25.pkl.gz、data/chunks.pkl.gz、data/stats.json 是【线上索引】，
+# 由 10_Vercel/预构建_索引.py 生成，Vercel 部署时要一并打包，必须进仓库，
+# 所以这里只忽略本地中间产物，不要写成 data/ 或 *.pkl.gz。
 data/pages/
 data/index/
 data/chunks.jsonl
 data/manifest.json
 data/解析统计.json
 data/切块统计.json
+
+# ---- 预构建脚本的本地副本目录（正式产物在仓库根 data/）----
+10_Vercel/data/
 
 # ---- 依赖与运行时 ----
 tmp/
