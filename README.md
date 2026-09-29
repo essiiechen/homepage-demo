@@ -26,7 +26,8 @@ top-8 却只覆盖 1/15 家）② 字段错位（含数字的表格块在自家�
 | `assets/text/<代码>.json` | 单家公司的正文，按命中情况按需拉取（15 片共 8.97MB） |
 
 **为什么检索放在浏览器里**：最早走的是 Vercel 的 Python Serverless 函数
-（`api/ask.py` + `lib/retriever.py`，代码仍在 `10_Vercel/python_api/`），但构建一直失败——
+（`api/ask.py` + `lib/retriever.py`，该方案已停用并删除，只保留共用的 `lib/retriever.py`），
+但构建一直失败——
 Vercel dashboard 里的 Framework Preset 会**覆盖** `vercel.json`，这个仓库原本是个人主页项目，
 还在按旧框架构建。与其在 dashboard 里一轮轮猜，不如把检索搬到浏览器：静态托管没有构建这一步，
 必定能上线，别人也一定能打开。
@@ -42,7 +43,6 @@ Vercel dashboard 里的 Framework Preset 会**覆盖** `vercel.json`，这个仓
 - 附带好处：问什么都不会离开你的浏览器，不需要 key，也没有函数冷启动和超时。
 
 - 本地完整版（bge 神经 embedding、可切混合/BM25/向量）仍是 `04_问答/app.py`，见「快速开始」第 4 步。
-- 部署副本 `09_部署/`（94MB，含两套索引）给需要自托管 Python 进程的场景用，不进仓库。
 
 ## 静态成果展示页（评估报告）
 
@@ -73,7 +73,7 @@ Vercel dashboard 里的 Framework Preset 会**覆盖** `vercel.json`，这个仓
 
 ```bash
 pip install -r requirements.local.txt     # 本地全流程（含 torch/sentence-transformers）
-# 线上是纯静态前端，不需要装任何东西；Python 版依赖见 10_Vercel/python_api/requirements.txt
+# 线上是纯静态前端，不需要装任何东西；本地跑 Python 脚本的依赖见 requirements.local.txt
 
 # 1. 下载年报（可重复跑，已有 sha1 会跳过）
 python 01_下载/下载_财报.py
@@ -121,8 +121,7 @@ python 07_展示/生成_展示页.py
 06_结论/   生成_一页结论.py    # 一页 PDF（交付附件）
            截图.py             # 问答页面截图（交付附件）
 07_展示/   生成_展示页.py      # 生成单文件展示页（截图/PDF 内嵌）→ 07_展示/index.html
-09_部署/   线上问答应用的部署副本：应用代码 + 切块 + 两套索引（94MB，不含年报原件）
-10_Vercel/ 前端版构建与自检脚本；python_api/ 是已停用的 Python Serverless 版
+10_Vercel/ 前端版构建与自检脚本（预构建索引 → 打包 assets → 15 题复评）
 
 ---- 以下是 Vercel 部署结构（仓库根，纯静态）----
 index.html              问答页面（站点首页）

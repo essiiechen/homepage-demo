@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-为 Vercel 线上版预构建检索数据（离线跑一次，产物进 api/data/）。
+离线构建一份扁平化的 BM25 与文本块索引（产物进仓库根 data/）。
 
-为什么预构建：Serverless 每次冷启动都要重新加载。若在线上现分词 9762 块再建 BM25，
-冷启动要 8 秒以上；预构建后只剩「解压 + 反序列化」，实测见 自检_线上冷启动.py。
+这是前端索引的上游步骤：先在这里把 9762 块分词、算好 idf 与文档长度、存成扁平数组，
+再由 10_Vercel/构建_前端索引.py 打包成浏览器能直接读的 assets/index.bin.gz。
+（早期这步是为 Serverless 冷启动做的，那时候的产物进 api/data/；线上改成纯静态后
+目录已统一到根 data/，脚本本身的算法没变。）
 
 产物：
-  api/data/chunks.pkl.gz   9762 块（字段与 data/chunks.jsonl 一致）
-  api/data/bm25.pkl.gz     扁平数组版倒排表 + idf + 文档长度
-  api/data/stats.json      页面顶部要显示的统计数字
+  data/chunks.pkl.gz   9762 块（字段与 data/chunks.jsonl 一致）
+  data/bm25.pkl.gz     扁平数组版倒排表 + idf + 文档长度
+  data/stats.json      页面顶部要显示的统计数字
 
 用法： PYTHONPATH=tmp/site python3 10_Vercel/预构建_索引.py
 """

@@ -1,7 +1,0 @@
-# 线上问答应用的最小依赖（不含下载/解析/出图用的 pdfplumber、reportlab、playwright）
-flask>=3.0
-rank_bm25>=0.2.2
-jieba>=0.42
-scikit-learn>=1.4
-numpy>=1.26
-sentence-transformers>=3.0
