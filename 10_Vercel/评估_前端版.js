@@ -78,16 +78,27 @@ const score = {};
 for (const k in STRATEGIES) score[k] = 0;
 console.log(`前端版数据：${idx.N} 块 / ${idx.V} 词\n`);
 
+// 落盘一份，供 06_结论/生成_一页结论.py 引用（PDF 里的数字必须有文件可查）
+const detail = [];
 for (const qd of qs) {
   let line = `Q${String(qd.id).padStart(2)}`;
+  const row = { '题号': qd.id, '问题': qd.q };
   for (const name in STRATEGIES) {
     const hits = STRATEGIES[name](qd.q).slice(0, 8);   // 判定口径统一取前 8 块
     const [ok, pos, why] = goldHit(hits, qd.gold);
     if (ok) score[name]++;
+    row[name] = ok ? '✓' : '✗';
     line += `  ${name.slice(0, 4)}=${ok ? '✓' : '✗'}`;
   }
+  detail.push(row);
   console.log(line);
 }
+
+require('fs').writeFileSync(
+  require('path').join(__dirname, '结果_前端版.json'),
+  JSON.stringify({ '块数': idx.N, '词数': idx.V, '题数': qs.length,
+                   '得分': score, '逐题': detail }, null, 1),
+  'utf8');
 
 console.log();
 for (const k in score) console.log(`  ${k.padEnd(12)} ${score[k]}/${qs.length}`);

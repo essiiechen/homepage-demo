@@ -24,8 +24,8 @@ LIVE_URL = "https://baijiu-report-rag.app-tencent.workbuddy.host/"
 
 SHOTS = [
     ("01", "单公司事实题：答案带『公司 + 页码』出处", "06_结论/截图_01_单公司题.png"),
-    ("02", "跨公司题（全局 top-8）：只覆盖 6/15 家公司", "06_结论/截图_02_跨公司题_全局top8.png"),
-    ("03", "跨公司题（分层召回）：覆盖 15/15 家公司", "06_结论/截图_03_跨公司题_分层召回.png"),
+    ("02", "跨公司题·全局 top-8：只覆盖 6/15 家公司", "06_结论/截图_03_跨公司题_全局top8.png"),
+    ("03", "跨公司题·自适应（按公司分层）：覆盖 15/15 家公司", "06_结论/截图_02_跨公司题.png"),
 ]
 
 from PIL import Image  # noqa: E402
@@ -110,9 +110,12 @@ def main():
     g_total, g_ok = Counter(), Counter()
     for r in rows:
         g_total[r["分组"]] += 1
-        if r["答对没有"].startswith(("能答对", "碰巧")):
+        # 严格口径：只算「能答对」，「碰巧」不算（与一页结论 PDF 保持一致）
+        if r["答对没有"].startswith("能答对"):
             g_ok[r["分组"]] += 1
-    n_ok = sum(1 for r in rows if r["答对没有"].startswith(("能答对", "碰巧")))
+    # 严格口径；另有 1 题「碰巧」命中，单独展示但不计入合计
+    n_ok = sum(1 for r in rows if r["答对没有"].startswith("能答对"))
+    n_lucky = sum(1 for r in rows if r["答对没有"].startswith("碰巧"))
 
     order = ["A 全局top-8", "B 全局top-40", "C 分层(15家×2)", "D 分层(15家×4)",
              "E 分层+关键章节保底"]
@@ -214,8 +217,8 @@ def main():
 <thead><tr><th>题型分组</th><th>题数</th><th>检索可答</th><th>表现与原因</th></tr></thead>
 <tbody>{gtr}</tbody>
 </table>
-<p class="note"><b>合计 {n_ok}/{len(rows)} 题检索可答</b>（其中 1 题属碰巧，不算真会）。
-逐题明细见下表。</p>
+<p class="note"><b>合计 {n_ok}/{len(rows)} 题检索可答</b>（严格口径；另有 {n_lucky} 题属碰巧命中——
+只覆盖 5/15 家就下『最高』结论，不算真会，不计入）。逐题明细见下表。</p>
 <table>
 <thead><tr><th>题目</th><th>问题</th><th>标准答案</th><th>hybrid 召回块（前 4）</th><th>判定 / 错在哪</th></tr></thead>
 <tbody>
